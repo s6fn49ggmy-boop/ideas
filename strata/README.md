@@ -6,13 +6,19 @@ No App Store, no account, no subscription. It's one HTML file.
 
 ## What it does
 
-**Painting**
-- 9 brushes: Studio Ink, Monoline, Brush Pen, Graphite, Felt Marker, Flat Gouache, Soft Air, Dry Chalk, Halftone Spray
+**Drawing and painting**
+- 48 brushes in 10 sets: Sketching, Inking, Calligraphy, Painting, Airbrushing, Spray paint, Texture, Luminance, Nature, Technical
+- Paper grain textures (paper, canvas, charcoal, sponge, noise) that stay fixed to the page like real paper
+- Tapered starts and ends, size/opacity jitter, scatter, colour jitter
+- Wet painting brushes (Oil Blend, Round Brush, Wet Wash, Soft Blender) that pick up and mix the colours already on the layer
+- Glow brushes that add light (Neon Glow, Light Pen, Sparkles, Bokeh)
+- **Brush Studio**: tweak any brush's spacing, streamline, tapers, tip shape, grain, pressure, jitter, wet mix and glow, with a live preview. Duplicate brushes into "My brushes".
+- **QuickShape**: draw a line, circle, ellipse, rectangle, triangle, arc or polyline and hold still at the end to snap it perfect
 - Smudge and eraser, each using any brush from the library
-- Streamline smoothing for clean lettering
 - Pressure support for a stylus; simulated pressure from finger speed
 - Symmetry (mirrors left ↔ right) and a grid guide
-- Size and opacity sliders on the left edge
+- Size and opacity sliders on the left edge, with a one-tap eyedropper button between them
+- Drag the colour dot onto the canvas to fill an area
 
 **Layers**
 - Up to 60 layers, depending on canvas size
@@ -35,7 +41,7 @@ No App Store, no account, no subscription. It's one HTML file.
 - **Mockups:** business cards, T-shirt, tote bag, framed poster, social post on a phone, die-cut sticker. Apparel comes in several colours.
 - Export PNG, transparent PNG or JPEG, then save to Photos or share
 
-**Gestures:** pinch to zoom, two-finger tap to undo, three-finger tap to redo. History keeps 40 steps.
+**Gestures:** pinch to zoom, two-finger tap to undo, three-finger tap to redo, hold at the end of a stroke to snap a shape, drag the colour dot to fill. History keeps 40 steps.
 
 Canvases autosave in the browser (IndexedDB) and are listed in the gallery.
 

@@ -75,7 +75,11 @@ button{touch-action:manipulation;cursor:pointer}
 .colordot{width:32px;height:32px;border-radius:50%;border:2px solid var(--text);margin:0 4px 0 6px;flex:none;box-shadow:0 0 0 2px var(--ink) inset}
 #stage{position:relative;flex:1;overflow:hidden;background:var(--work);touch-action:none}
 #view{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
-#sliders{position:absolute;left:max(6px,env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:18px;z-index:3}
+#sliders{position:absolute;left:max(6px,env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;z-index:3}
+.modbtn{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 88%,transparent);display:grid;place-items:center;padding:0;color:var(--text)}
+.modbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.modbtn.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+#dropDot{position:fixed;width:46px;height:46px;border-radius:50%;border:3px solid #fff;box-shadow:0 4px 18px rgba(0,0,0,.5);transform:translate(-50%,-85%);pointer-events:none;z-index:40}
 .vs{width:30px;height:150px;border-radius:15px;background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);position:relative;touch-action:none;overflow:hidden}
 .vs .fill{position:absolute;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--accent) 22%,transparent)}
 .vs .knob{position:absolute;left:4px;right:4px;height:8px;border-radius:4px;background:var(--text);transform:translateY(50%)}
@@ -119,7 +123,14 @@ input[type=text],input[type=number]{font-size:16px;-webkit-user-select:text;user
 .brushes{display:grid;gap:8px}
 .brushrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel2);border-radius:11px;padding:6px 10px;text-align:left}
 .brushrow.on{border-color:var(--accent)}
-.brushrow canvas{width:130px;height:34px;flex:none}
+.brushrow canvas{width:130px;height:34px;flex:none;border-radius:6px;background:var(--ink)}
+.brushrow .bn{flex:1;min-width:0}
+.brushrow .pill{padding:6px 12px;font-size:12px;flex:none}
+.cats{margin:0 -4px;padding:0 4px 2px}
+.stprev{width:100%;height:auto;aspect-ratio:640/190;border-radius:12px;display:block;margin-bottom:6px}
+.pill[disabled]{opacity:.4}
+.newcard{align-items:center;justify-content:center;gap:6px;min-height:200px;border-style:dashed;color:var(--mute);background:transparent}
+.newcard span{font-size:40px;font-weight:300;line-height:1;color:var(--accent)}
 .brushrow b{display:block;font-size:13px}
 .brushrow span{color:var(--mute);font-size:11px}
 
@@ -204,6 +215,7 @@ input[type=text],input[type=number]{font-size:16px;-webkit-user-select:text;user
       <canvas id="view"></canvas>
       <div id="sliders">
         <div class="vs" id="vsSize" aria-label="Brush size"><div class="fill"></div><div class="knob"></div><div class="lbl">SIZE</div></div>
+        <button class="modbtn" id="bPick" aria-label="Eyedropper: tap, then touch the canvas"></button>
         <div class="vs" id="vsOpa" aria-label="Opacity"><div class="fill"></div><div class="knob"></div><div class="lbl">OPAC</div></div>
       </div>
       <div id="bubble" hidden></div>
@@ -271,35 +283,23 @@ let W=1080,H=1080;
 const S={
   doc:null,
   tool:'brush',
-  brushFor:{brush:'ink',eraser:'soft',smudge:'soft'},
+  brushFor:{brush:'studio',eraser:'mono',smudge:'soft'},
+  brushCat:store.get('strata.cat','ink'), studioId:null, pickOnce:false, quickshape:store.get('strata.qs',true),
   size:{brush:14,eraser:48,smudge:48},
   opacity:{brush:1,eraser:1,smudge:.65},
   color:'#1f2a44', hsv:[222,.55,.27],
   recents:store.get('strata.recents',['#1f2a44','#f0b43c','#e86f4f','#ffffff','#000000']),
-  streamline:store.get('strata.streamline',.35),
   symmetry:false, grid:false,
   shape:{kind:'rect',fill:true,square:false},
   fill:{tol:30,ref:'all'},
   view:{scale:1,tx:0,ty:0},
 };
 const BLENDS=[['source-over','Normal'],['multiply','Multiply'],['screen','Screen'],['overlay','Overlay'],['darken','Darken'],['lighten','Lighten'],['color-dodge','Colour dodge'],['color-burn','Colour burn'],['hard-light','Hard light'],['soft-light','Soft light'],['difference','Difference'],['exclusion','Exclusion'],['hue','Hue'],['saturation','Saturation'],['color','Colour'],['luminosity','Luminosity']];
-const BRUSHES=[
- {id:'ink',name:'Studio Ink',note:'Crisp, thins when you move fast',shape:'round',spacing:.06,flow:1,speedThin:.55,taper:true},
- {id:'mono',name:'Monoline',note:'Even width, great for logos',shape:'round',spacing:.05,flow:1,speedThin:0},
- {id:'brushpen',name:'Brush Pen',note:'Big thick-thin swing',shape:'round',spacing:.04,flow:1,speedThin:.9,taper:true},
- {id:'pencil',name:'Graphite',note:'Grainy sketching pencil',shape:'grain',spacing:.1,flow:.55,speedThin:.25,taper:true,jitter:.08},
- {id:'marker',name:'Felt Marker',note:'Chisel tip, no build-up',shape:'chisel',spacing:.04,flow:1,angle:-.6,aspect:.42},
- {id:'flat',name:'Flat Gouache',note:'Turns with your stroke',shape:'flat',spacing:.03,flow:.9,aspect:.28,followDir:true},
- {id:'soft',name:'Soft Air',note:'Airbrush that builds up',shape:'soft',spacing:.08,flow:.1},
- {id:'chalk',name:'Dry Chalk',note:'Broken, textured edge',shape:'grain',spacing:.18,flow:.85,scatter:.12,jitter:.25},
- {id:'spray',name:'Halftone Spray',note:'Speckled dots',shape:'dots',spacing:.3,flow:1,scatter:.5},
-];
 const FONTS=['Inter','Montserrat','Poppins','Space Grotesk','Syne','Archivo Black','Bebas Neue','Oswald','Playfair Display','DM Serif Display','Pacifico','Caveat'];
 const PRESETS=[
  {n:'Logo',w:2000,h:2000},{n:'Square post',w:1080,h:1080},{n:'Portrait post',w:1080,h:1350},{n:'Story',w:1080,h:1920},
  {n:'Business card',w:1050,h:600},{n:'Poster 18×24',w:1800,h:2400},{n:'Banner',w:1500,h:500},{n:'A4 print',w:2480,h:3508},
 ];
-const brushById=id=>BRUSHES.find(b=>b.id===id)||BRUSHES[0];
 const maxLayers=()=>clamp(Math.floor(120e6/(W*H)),3,60);
 const maxSize=()=>clamp(Math.round(Math.max(W,H)*.25),60,1000);
 
@@ -341,16 +341,18 @@ function makeChecker(){const c=mk(16,16),x=c.getContext('2d');x.fillStyle='#d9dc
 function composite(target,{bg=true,live=true}={}){
   const c=target.getContext('2d'),d=S.doc;c.save();c.setTransform(target.width/W,0,0,target.height/H,0,0);c.globalAlpha=1;c.globalCompositeOperation='source-over';c.clearRect(0,0,W,H);
   if(bg&&d.bgVisible){c.fillStyle=d.bg;c.fillRect(0,0,W,H);}
-  for(const L of d.layers){if(!L.visible)continue;let src=L.canvas;if(live&&L===d.active)src=liveLayer(L)||src;c.globalAlpha=L.opacity;c.globalCompositeOperation=L.blend;c.drawImage(src,0,0);}
+  for(const L of d.layers){if(!L.visible)continue;
+    if(live&&L===d.active&&stroke&&!stroke.direct&&stroke.mode==='source-over'&&L.blend==='source-over'&&L.opacity===1){c.globalAlpha=1;c.globalCompositeOperation='source-over';c.drawImage(L.canvas,0,0);c.globalAlpha=stroke.opacity;c.drawImage(strokeSrc(stroke),0,0);continue;}
+    let src=L.canvas;if(live&&L===d.active)src=liveLayer(L)||src;c.globalAlpha=L.opacity;c.globalCompositeOperation=L.blend;c.drawImage(src,0,0);}
   c.restore();
 }
 function liveLayer(L){
-  if(stroke&&!stroke.direct){xctx.globalCompositeOperation='source-over';xctx.globalAlpha=1;xctx.clearRect(0,0,W,H);xctx.drawImage(L.canvas,0,0);xctx.globalAlpha=stroke.opacity;xctx.globalCompositeOperation=stroke.mode;xctx.drawImage(strokeC,0,0);xctx.globalAlpha=1;xctx.globalCompositeOperation='source-over';return scratch;}
+  if(stroke&&!stroke.direct){xctx.globalCompositeOperation='source-over';xctx.globalAlpha=1;xctx.clearRect(0,0,W,H);xctx.drawImage(L.canvas,0,0);xctx.globalAlpha=stroke.opacity;xctx.globalCompositeOperation=stroke.mode;xctx.drawImage(strokeSrc(stroke),0,0);xctx.globalAlpha=1;xctx.globalCompositeOperation='source-over';return scratch;}
   if(xform&&xform.L===L){xctx.clearRect(0,0,W,H);drawXformed(xctx);return scratch;}
   return null;
 }
 function render(){
-  needRender=false;if(!S.doc)return;
+  needRender=false;if(!S.doc)return;updateTex();
   const vw=view.width,vh=view.height,{scale:s,tx,ty}=S.view;
   vctx.setTransform(1,0,0,1,0,0);vctx.fillStyle='#0b0d10';vctx.fillRect(0,0,vw,vh);
   composite(comp);
@@ -375,80 +377,295 @@ function resize(){dpr=Math.min(2,window.devicePixelRatio||1);view.width=Math.rou
 function fitView(){const vw=stage.clientWidth,vh=stage.clientHeight,pad=28;const s=Math.min((vw-pad*2)/W,(vh-pad*2)/H);S.view.scale=s;S.view.tx=(vw-W*s)/2;S.view.ty=(vh-H*s)/2;requestRender();}
 const toDoc=(x,y)=>({x:(x-S.view.tx)/S.view.scale,y:(y-S.view.ty)/S.view.scale});
 
-/* ============ brush stamps ============ */
+/* ============ brush engine ============ */
+/* Every brush is a set of numbers on top of BDEF. Dabs are stamped along the path;
+   each dab's random values come from a seeded generator so a stroke can be re-rendered
+   exactly (for end taper and QuickShape). */
+const BDEF={shape:'round',spacing:.06,flow:1,sizeP:.75,opP:0,speedThin:0,taperS:0,taperE:0,jSize:0,jOpa:0,jAngle:0,jHue:0,jBri:0,scatter:0,count:1,angle:0,follow:false,aspect:1,grain:null,grainScale:1,grainDepth:.6,wet:0,load:.9,glow:false,blend:null,maxOpa:1,stream:.3};
+const CATS=[['sketch','Sketching'],['ink','Inking'],['calli','Calligraphy'],['paint','Painting'],['air','Airbrushing'],['spray','Spray paint'],['texture','Texture'],['glow','Luminance'],['nature','Nature'],['tech','Technical'],['mine','My brushes']];
+const BASE=[
+ // Sketching
+ {id:'hb',cat:'sketch',name:'HB Pencil',note:'Light, grainy, pressure shades',shape:'round',spacing:.1,flow:.75,sizeP:.4,opP:.6,taperS:.4,taperE:.4,grain:'paper',grainDepth:.75,grainScale:.8,stream:.15},
+ {id:'6b',cat:'sketch',name:'6B Pencil',note:'Soft and dark with paper tooth',shape:'round',spacing:.08,flow:.9,sizeP:.5,opP:.4,taperS:.3,taperE:.3,jSize:.05,grain:'paper',grainDepth:.55,stream:.15},
+ {id:'pencil',cat:'sketch',name:'Graphite',note:'Grainy sketching stick',shape:'charcoal',spacing:.1,flow:.6,sizeP:.5,opP:.4,speedThin:.25,taperS:.4,jSize:.08,jAngle:1,stream:.15},
+ {id:'liner',cat:'sketch',name:'Sketch Liner',note:'Quick, loose construction lines',shape:'round',spacing:.06,flow:.85,sizeP:.5,opP:.35,speedThin:.3,taperS:.3,taperE:.4,stream:.1},
+ {id:'charcoal',cat:'sketch',name:'Vine Charcoal',note:'Smoky, broken edges',shape:'charcoal',spacing:.14,flow:.85,sizeP:.5,opP:.5,jAngle:1,jSize:.1,grain:'charcoal',grainDepth:.75,stream:.15},
+ {id:'conte',cat:'sketch',name:'Conté Stick',note:'Flat chalky block',shape:'square',aspect:.45,angle:-.5,spacing:.05,flow:.9,sizeP:.3,opP:.5,grain:'paper',grainDepth:.7,stream:.2},
+ // Inking
+ {id:'studio',cat:'ink',name:'Studio Pen',note:'Smooth ink with tapered ends',shape:'round',spacing:.05,sizeP:.85,speedThin:.35,taperS:.5,taperE:.6,stream:.35},
+ {id:'techpen',cat:'ink',name:'Technical Pen',note:'Steady, even line',shape:'round',spacing:.05,sizeP:.12,taperS:.15,taperE:.15,stream:.5},
+ {id:'ink',cat:'ink',name:'Studio Ink',note:'Thins when you move fast',shape:'round',spacing:.06,sizeP:.8,speedThin:.55,taperS:.4,stream:.3},
+ {id:'brushpen',cat:'ink',name:'Brush Pen',note:'Big thick-to-thin swing',shape:'round',spacing:.04,sizeP:1,speedThin:.85,taperS:.9,taperE:1,stream:.4},
+ {id:'gel',cat:'ink',name:'Gel Pen',note:'Rounded, slightly glossy',shape:'round',spacing:.05,sizeP:.3,opP:.1,taperS:.25,taperE:.25,stream:.35},
+ {id:'dryink',cat:'ink',name:'Dry Ink',note:'Ink that skips on the paper',shape:'round',spacing:.06,sizeP:.8,taperS:.5,taperE:.5,jSize:.1,grain:'noise',grainDepth:.45,stream:.3},
+ {id:'mono',cat:'ink',name:'Monoline',note:'Even width, great for logos',shape:'round',spacing:.05,sizeP:0,stream:.45},
+ // Calligraphy
+ {id:'chisel',cat:'calli',name:'Chisel Nib',note:'Broad-edge italic nib',shape:'chisel',aspect:.18,angle:-.7,spacing:.03,sizeP:.35,stream:.45},
+ {id:'script',cat:'calli',name:'Script',note:'Pressure lettering, long tapers',shape:'round',spacing:.04,sizeP:1,speedThin:.5,taperS:.7,taperE:.8,stream:.6},
+ {id:'marker',cat:'calli',name:'Felt Marker',note:'Chisel tip, no build-up',shape:'chisel',aspect:.42,angle:-.6,spacing:.04,sizeP:.2,stream:.3},
+ {id:'highlighter',cat:'calli',name:'Highlighter',note:'See-through, multiplies colour',shape:'square',aspect:.35,spacing:.03,sizeP:0,blend:'multiply',maxOpa:.55,stream:.4},
+ {id:'ribbon',cat:'calli',name:'Ribbon',note:'Flat edge that turns with you',shape:'flat',follow:true,aspect:.16,spacing:.03,sizeP:.5,stream:.45},
+ // Painting
+ {id:'round',cat:'paint',name:'Round Brush',note:'Wet paint that blends a little',shape:'round',spacing:.05,flow:.9,sizeP:.85,taperS:.3,wet:.25,load:.985,stream:.25},
+ {id:'oil',cat:'paint',name:'Oil Blend',note:'Thick bristles, mixes colours',shape:'bristle',follow:true,spacing:.05,flow:.95,sizeP:.6,wet:.55,load:.96,stream:.2},
+ {id:'gouache',cat:'paint',name:'Flat Gouache',note:'Matte flat brush on canvas',shape:'flat',follow:true,aspect:.3,spacing:.03,flow:.9,sizeP:.4,grain:'canvas',grainDepth:.3,stream:.25},
+ {id:'acrylic',cat:'paint',name:'Acrylic',note:'Streaky bristle marks',shape:'bristle',follow:true,spacing:.04,flow:.9,sizeP:.5,opP:.3,grain:'canvas',grainDepth:.35,stream:.2},
+ {id:'drybrush',cat:'paint',name:'Dry Brush',note:'Scratchy, runs out of paint',shape:'bristle',follow:true,spacing:.06,flow:.75,sizeP:.4,jOpa:.3,grain:'canvas',grainDepth:.7,stream:.2},
+ {id:'wash',cat:'paint',name:'Wet Wash',note:'Soft watery glaze that blends',shape:'soft',spacing:.08,flow:.4,sizeP:.6,wet:.4,load:.97,stream:.2},
+ {id:'blender',cat:'paint',name:'Soft Blender',note:'Pushes and blends existing paint',shape:'soft',spacing:.08,flow:.8,sizeP:.3,wet:1,load:0,stream:.2},
+ // Airbrushing
+ {id:'soft',cat:'air',name:'Soft Air',note:'Airbrush that builds up',shape:'soft',spacing:.08,flow:.1,sizeP:.3,stream:.2},
+ {id:'medium',cat:'air',name:'Medium Air',note:'Firmer airbrush falloff',shape:'soft',spacing:.06,flow:.22,sizeP:.3,stream:.2},
+ {id:'hardair',cat:'air',name:'Hard Airbrush',note:'Crisp edge, builds opacity',shape:'round',spacing:.05,flow:.18,sizeP:.2,stream:.2},
+ // Spray
+ {id:'spray',cat:'spray',name:'Spray Can',note:'Fine misty spray',shape:'spray',count:14,spacing:.25,flow:.9,sizeP:.3,stream:.1},
+ {id:'halftone',cat:'spray',name:'Halftone Spray',note:'Speckled dots',shape:'spray',count:6,spacing:.3,scatter:.5,sizeP:.2,stream:.1},
+ {id:'splatter',cat:'spray',name:'Splatter',note:'Random paint flicks',shape:'splatter',spacing:.9,scatter:.8,jSize:.6,sizeP:.3,stream:.05},
+ {id:'stipple',cat:'spray',name:'Stipple',note:'Dotted shading',shape:'spray',count:3,spacing:.4,sizeP:.3,stream:.05},
+ // Texture
+ {id:'chalk',cat:'texture',name:'Dry Chalk',note:'Broken, textured edge',shape:'charcoal',spacing:.16,flow:.9,scatter:.1,jSize:.25,jAngle:1,grain:'paper',grainDepth:.6,stream:.15},
+ {id:'crayon',cat:'texture',name:'Wax Crayon',note:'Heavy waxy tooth',shape:'round',spacing:.06,flow:1,sizeP:.3,jSize:.05,grain:'charcoal',grainDepth:.85,grainScale:1.4,stream:.15},
+ {id:'hatch',cat:'texture',name:'Crosshatch',note:'Pen hatching for shading',shape:'hatch',angle:-.785,spacing:.45,sizeP:.3,stream:.1},
+ {id:'sponge',cat:'texture',name:'Sponge',note:'Dabbed sponge texture',shape:'charcoal',spacing:.25,flow:.9,jAngle:1,jSize:.2,grain:'sponge',grainDepth:.9,stream:.05},
+ {id:'grit',cat:'texture',name:'Grit',note:'Gritty noise for shading',shape:'spray',count:30,spacing:.2,flow:.8,sizeP:.2,grain:'noise',grainDepth:.5,stream:.05},
+ // Luminance
+ {id:'neon',cat:'glow',name:'Neon Glow',note:'Bright core with a soft halo',shape:'glow',spacing:.05,flow:.35,sizeP:.5,glow:true,taperS:.2,taperE:.3,stream:.35},
+ {id:'lightpen',cat:'glow',name:'Light Pen',note:'Adds light where lines cross',shape:'soft',spacing:.05,flow:.3,sizeP:.6,glow:true,stream:.35},
+ {id:'sparkle',cat:'glow',name:'Sparkles',note:'Twinkling star bursts',shape:'star',spacing:1.2,scatter:1,jSize:.7,jAngle:.15,glow:true,sizeP:.3,stream:.05},
+ {id:'bokeh',cat:'glow',name:'Bokeh',note:'Soft out-of-focus lights',shape:'round',spacing:1.4,scatter:1.4,flow:.25,jSize:.8,jBri:.3,jHue:.08,glow:true,sizeP:.2,stream:.05},
+ // Nature
+ {id:'leaves',cat:'nature',name:'Foliage',note:'Scattered leaves in varied greens',shape:'leaf',spacing:.5,scatter:.6,jSize:.4,jAngle:1,jHue:.08,jBri:.25,sizeP:.3,stream:.05},
+ {id:'grass',cat:'nature',name:'Grass',note:'Blades that grow upward',shape:'grass',spacing:.12,jSize:.4,jHue:.05,jBri:.2,sizeP:.3,stream:.05},
+ {id:'fur',cat:'nature',name:'Fur',note:'Short strands along your stroke',shape:'fur',follow:true,spacing:.15,scatter:.3,jSize:.3,jBri:.15,sizeP:.3,stream:.1},
+ {id:'clouds',cat:'nature',name:'Clouds',note:'Puffy soft billows',shape:'soft',spacing:.25,scatter:.5,jSize:.5,flow:.14,grain:'sponge',grainDepth:.35,sizeP:.2,stream:.1},
+ // Technical
+ {id:'pixel',cat:'tech',name:'Square Pixel',note:'Hard square tip',shape:'square',aspect:1,spacing:.05,sizeP:0,stream:0},
+ {id:'dotted',cat:'tech',name:'Dotted Line',note:'Evenly spaced dots',shape:'round',spacing:2.2,sizeP:0,stream:.5},
+ {id:'dashed',cat:'tech',name:'Dashed Line',note:'Dashes along the path',shape:'square',follow:true,aspect:.3,spacing:1.7,sizeP:0,stream:.5},
+];
+let brushMods=store.get('strata.brushmods',{}),customBrushes=store.get('strata.custom',[]);
+let BR_CACHE=null;
+function allBrushes(){return[...BASE.map(b=>({...BDEF,...b,...(brushMods[b.id]||{})})),...customBrushes.map(b=>({...BDEF,...b,cat:'mine'}))];}
+function brushById(id){if(!BR_CACHE)BR_CACHE=new Map(allBrushes().map(b=>[b.id,b]));return BR_CACHE.get(id)||BR_CACHE.get('studio');}
+function invalidateBrushes(){BR_CACHE=null;previewCache.clear();}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function rng(seed){let a=seed>>>0||1;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* stamps */
 const stampCache=new Map();
 function stamp(shape,color){
   const key=shape+color;if(stampCache.has(key))return stampCache.get(key);
   const N=128,c=mk(N,N),x=c.getContext('2d');const [r,g,b]=hexToRgb(color);
   if(shape==='soft'){const gr=x.createRadialGradient(N/2,N/2,0,N/2,N/2,N/2);gr.addColorStop(0,`rgba(${r},${g},${b},1)`);gr.addColorStop(.5,`rgba(${r},${g},${b},.45)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);x.fillStyle=gr;x.fillRect(0,0,N,N);}
-  else if(shape==='grain'){const id=x.createImageData(N,N);for(let j=0;j<N;j++)for(let i=0;i<N;i++){const dx=i-N/2+.5,dy=j-N/2+.5,d=Math.sqrt(dx*dx+dy*dy)/(N/2);if(d>1)continue;const k=(j*N+i)*4;const n=Math.random();const a=(1-Math.pow(d,3))*(n>.45?n:n*.25);id.data[k]=r;id.data[k+1]=g;id.data[k+2]=b;id.data[k+3]=a*255;}x.putImageData(id,0,0);}
-  if(stampCache.size>40)stampCache.clear();stampCache.set(key,c);return c;
+  else{const id=x.createImageData(N,N);const R=rng(7);for(let j=0;j<N;j++)for(let i=0;i<N;i++){const dx=i-N/2+.5,dy=j-N/2+.5,d=Math.sqrt(dx*dx+dy*dy)/(N/2);if(d>1)continue;const k=(j*N+i)*4;const n=R();const a=(1-Math.pow(d,3))*(n>.45?n:n*.25);id.data[k]=r;id.data[k+1]=g;id.data[k+2]=b;id.data[k+3]=a*255;}x.putImageData(id,0,0);}
+  if(stampCache.size>80)stampCache.clear();stampCache.set(key,c);return c;
 }
-function dab(c,b,x,y,size,alpha,angle,color){
-  c.globalAlpha=clamp(alpha,0,1);const r=Math.max(.35,size/2);
+const lightCache=new Map();
+function lighten(col){if(!lightCache.has(col)){const [r,g,b]=hexToRgb(col);lightCache.set(col,rgbToHex(r+(255-r)*.75,g+(255-g)*.75,b+(255-b)*.75));}return lightCache.get(col);}
+const brCache=new Map();
+function bristles(b){if(brCache.has(b.id))return brCache.get(b.id);const R=rng(hashStr(b.id));const n=16,a=[];for(let i=0;i<n;i++)a.push([-1+2*(i+.5)/n+(R()-.5)*.08,.05+R()*.07,.35+R()*.65]);brCache.set(b.id,a);return a;}
+function jitterColor(hex,jh,jb,R){if(!jh&&!jb)return hex;let [h,s,v]=rgbToHsv(...hexToRgb(hex));h=(h+(R()-.5)*2*jh*180+360)%360;v=clamp(v+(R()-.5)*2*jb,0,1);return rgbToHex(...hsvToRgb(h,s,v));}
+
+/* paper grain textures (tileable alpha maps) */
+const texCache=new Map();
+function grainTex(kind,depth){
+  depth=Math.round(depth*20)/20;const key=kind+depth;if(texCache.has(key))return texCache.get(key);
+  const N=256,v=new Float32Array(N*N),R=rng(hashStr(kind));const I=(x,y)=>((y+N)%N)*N+((x+N)%N);
+  const blur=(a,rx,ry)=>{const t=new Float32Array(N*N);for(let y=0;y<N;y++)for(let x=0;x<N;x++){let s=0,c=0;for(let j=-ry;j<=ry;j++)for(let i=-rx;i<=rx;i++){s+=a[I(x+i,y+j)];c++;}t[y*N+x]=s/c;}return t;};
+  let a;
+  if(kind==='canvas'){a=new Float32Array(N*N);for(let y=0;y<N;y++)for(let x=0;x<N;x++){const sx=.5+.5*Math.sin(x*TAU/8),sy=.5+.5*Math.sin(y*TAU/8);a[y*N+x]=(((x>>3)+(y>>3))&1?sx:sy)*.75+R()*.25;}}
+  else if(kind==='sponge'){a=new Float32Array(N*N).fill(1);for(let k=0;k<170;k++){const cx=R()*N,cy=R()*N,r=2+R()*9;for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++)if(x*x+y*y<=r*r)a[I(Math.round(cx+x),Math.round(cy+y))]=.05;}a=blur(a,1,1);}
+  else{a=new Float32Array(N*N);for(let i=0;i<a.length;i++)a[i]=R();
+    if(kind==='paper')a=blur(blur(a,1,1),1,1);
+    else if(kind==='charcoal')a=blur(a,6,0);}
+  let lo=1,hi=0;for(const x of a){if(x<lo)lo=x;if(x>hi)hi=x;}
+  const c=mk(N,N),x=c.getContext('2d'),id=x.createImageData(N,N);
+  for(let i=0;i<a.length;i++){let t=(a[i]-lo)/((hi-lo)||1);if(kind==='paper'||kind==='charcoal')t=clamp((t-.3)*1.8,0,1);id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=255;id.data[i*4+3]=255*(1-depth+depth*t);}
+  x.putImageData(id,0,0);texCache.set(key,c);return c;
+}
+function grainPattern(ctx,b,m){const p=ctx.createPattern(grainTex(b.grain,b.grainDepth),'repeat');try{p.setTransform(m||new DOMMatrix().scale(b.grainScale));}catch(e){}return p;}
+
+/* one dab */
+function dabTo(c,b,d,col){
+  const r=Math.max(.35,d.s/2),R=rng(d.seed),ang=d.ang;c.globalAlpha=clamp(d.a,0,1);c.fillStyle=col;c.strokeStyle=col;
   switch(b.shape){
-    case 'round':c.beginPath();c.arc(x,y,r,0,TAU);c.fill();break;
-    case 'chisel':case 'flat':c.beginPath();c.ellipse(x,y,r,Math.max(.35,r*b.aspect),b.followDir?angle+Math.PI/2:b.angle,0,TAU);c.fill();break;
-    case 'dots':for(let i=0;i<7;i++){const a=Math.random()*TAU,d=Math.sqrt(Math.random())*r;c.beginPath();c.arc(x+Math.cos(a)*d,y+Math.sin(a)*d,Math.max(.5,size*.045),0,TAU);c.fill();}break;
-    case 'grain':c.save();c.translate(x,y);c.rotate(Math.random()*TAU);c.drawImage(stamp('grain',color),-r,-r,size,size);c.restore();break;
-    default:c.drawImage(stamp(b.shape,color),x-r,y-r,size,size);
+    case 'round':c.beginPath();c.arc(d.x,d.y,r,0,TAU);c.fill();break;
+    case 'square':c.save();c.translate(d.x,d.y);c.rotate(ang);c.fillRect(-r,-r*b.aspect,r*2,Math.max(.7,r*2*b.aspect));c.restore();break;
+    case 'chisel':case 'flat':c.beginPath();c.ellipse(d.x,d.y,r,Math.max(.35,r*b.aspect),ang+(b.follow?Math.PI/2:0),0,TAU);c.fill();break;
+    case 'soft':c.drawImage(stamp('soft',col),d.x-r,d.y-r,r*2,r*2);break;
+    case 'charcoal':c.save();c.translate(d.x,d.y);c.rotate(ang);c.drawImage(stamp('grain',col),-r,-r,r*2,r*2);c.restore();break;
+    case 'glow':c.drawImage(stamp('soft',col),d.x-r,d.y-r,r*2,r*2);c.globalAlpha=clamp(d.a*2.2,0,1);c.fillStyle=lighten(col);c.beginPath();c.arc(d.x,d.y,r*.2,0,TAU);c.fill();break;
+    case 'spray':{const dr=Math.max(.5,d.s*.035);c.beginPath();for(let i=0;i<b.count;i++){const a=R()*TAU,q=Math.sqrt(R())*r,rr=dr*(.5+R()),px=d.x+Math.cos(a)*q,py=d.y+Math.sin(a)*q;c.moveTo(px+rr,py);c.arc(px,py,rr,0,TAU);}c.fill();break;}
+    case 'splatter':{const n=2+Math.floor(R()*4);c.beginPath();for(let i=0;i<n;i++){const a=R()*TAU,q=Math.pow(R(),.7)*r,rr=Math.max(.5,r*(.04+R()*R()*.35)),px=d.x+Math.cos(a)*q,py=d.y+Math.sin(a)*q;c.moveTo(px+rr,py);c.arc(px,py,rr,0,TAU);}c.fill();break;}
+    case 'bristle':{c.save();c.translate(d.x,d.y);c.rotate(ang+Math.PI/2);for(const [o,w,al] of bristles(b)){c.globalAlpha=clamp(d.a*al,0,1);c.beginPath();c.arc(o*r,0,Math.max(.4,w*r),0,TAU);c.fill();}c.restore();break;}
+    case 'hatch':{c.save();c.translate(d.x,d.y);c.rotate(b.angle);c.lineWidth=Math.max(.5,d.s*.07);c.lineCap='round';c.beginPath();for(let i=-1;i<=1;i++){const o=i*r*.45+(R()-.5)*r*.1;c.moveTo(-r*.8,o);c.lineTo(r*.8,o);}c.stroke();c.restore();break;}
+    case 'leaf':c.save();c.translate(d.x,d.y);c.rotate(ang);c.beginPath();c.moveTo(-r,0);c.quadraticCurveTo(0,-r*.55,r,0);c.quadraticCurveTo(0,r*.55,-r,0);c.fill();c.restore();break;
+    case 'star':c.save();c.translate(d.x,d.y);c.rotate(ang);c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,q=i%2?r*.16:r;c.lineTo(Math.cos(a)*q,Math.sin(a)*q);}c.closePath();c.fill();c.globalAlpha=clamp(d.a*.5,0,1);c.drawImage(stamp('soft',col),-r*.5,-r*.5,r,r);c.restore();break;
+    case 'grass':{c.save();c.translate(d.x,d.y);const a=-Math.PI/2+(R()-.5)*.9,len=r*2*(.6+R()*.6),w=Math.max(.6,r*.16),tx=Math.cos(a)*len,ty=Math.sin(a)*len,bend=(R()-.5)*len*.4;c.beginPath();c.moveTo(-w,0);c.quadraticCurveTo(tx*.5+bend-w*.5,ty*.5,tx+bend,ty);c.quadraticCurveTo(tx*.5+bend+w*.5,ty*.5,w,0);c.closePath();c.fill();c.restore();break;}
+    case 'fur':{c.save();c.translate(d.x,d.y);c.rotate(ang+(R()-.5)*.6);const len=r*2*(.5+R()*.8);c.lineWidth=Math.max(.5,r*.12);c.lineCap='round';c.beginPath();c.moveTo(-len/2,(R()-.5)*r);c.lineTo(len/2,(R()-.5)*r*.3);c.stroke();c.restore();break;}
   }
 }
 
-/* ============ strokes (brush / eraser / smudge) ============ */
-let stroke=null;
+/* stroke state */
+function makeStroke(o){
+  const st=Object.assign({dabs:[],last:null,next:0,base:0,dist:0,speed:0,path:[],prs:[],box:[Infinity,Infinity,-Infinity,-Infinity],pend:null,R:rng((Math.random()*4294967295)>>>0),sm:{x:o.start.x,y:o.start.y},t:o.start.t||0},o);
+  if(st.direct){const s=clamp(Math.ceil(st.size),2,200);st.buf=mk(s,s);st.bx=st.buf.getContext('2d');st.mask=mk(s,s);st.mx=st.mask.getContext('2d');st.charge=1;
+    const z=st.size;st.bx.drawImage(st.L.canvas,st.start.x-z/2,st.start.y-z/2,z,z,0,0,s,s);}
+  return st;
+}
+const taperF=(d,len)=>len>0?.12+.88*Math.sqrt(clamp(d/len,0,1)):1;
+const stepOf=(st,pr)=>Math.max(.35,st.size*st.b.spacing*(1-st.b.sizeP+st.b.sizeP*pr));
+function pathTo(st,x,y,pr){
+  if(!st.last){st.last={x,y,pr};st.dist=0;emit(st,x,y,pr,0);st.next=stepOf(st,pr);return;}
+  const dx=x-st.last.x,dy=y-st.last.y,d=Math.hypot(dx,dy);if(d<.01)return;const dir=Math.atan2(dy,dx);
+  while(st.next<=d){const f=st.next/d,pp=lerp(st.last.pr,pr,f);st.dist=st.base+st.next;emit(st,st.last.x+dx*f,st.last.y+dy*f,pp,dir);st.next+=stepOf(st,pp);}
+  st.next-=d;st.base+=d;st.last={x,y,pr};
+}
+function emit(st,x,y,pr,dir){
+  const b=st.b,R=st.R;let sz=st.size*(1-b.sizeP+b.sizeP*pr);
+  if(b.taperS&&!st.snapped)sz*=taperF(st.dist,b.taperS*st.size*4);
+  if(b.jSize)sz*=Math.max(.05,1+(R()-.5)*2*b.jSize);
+  let a=b.flow*(1-b.opP+b.opP*pr);if(b.jOpa)a*=1-R()*b.jOpa;
+  if(b.scatter){x+=(R()-.5)*2*st.size*b.scatter;y+=(R()-.5)*2*st.size*b.scatter;}
+  const ang=(b.follow?dir:b.angle)+(b.jAngle?(R()-.5)*TAU*b.jAngle:0);
+  const col=st.tool==='eraser'?st.color:jitterColor(st.color,b.jHue,b.jBri,R);
+  const d={x,y,s:Math.max(.3,sz),a,ang,seed:(R()*4294967295)>>>0,col,dist:st.dist};
+  addDab(st,d);if(st.mirror)addDab(st,{...d,x:st.w-x,ang:Math.PI-ang});
+}
+function addDab(st,d){
+  if(st.direct)directDab(st,d);else{st.dabs.push(d);dabTo(st.ctx,st.b,d,d.col);}
+  const m=d.s/2+(st.b.shape==='grass'?d.s*1.3:st.b.shape==='fur'?d.s:2)+2;
+  const x0=d.x-m,y0=d.y-m,x1=d.x+m,y1=d.y+m,bx=st.box;bx[0]=Math.min(bx[0],x0);bx[1]=Math.min(bx[1],y0);bx[2]=Math.max(bx[2],x1);bx[3]=Math.max(bx[3],y1);
+  const p=st.pend;if(!p)st.pend=[x0,y0,x1,y1];else{p[0]=Math.min(p[0],x0);p[1]=Math.min(p[1],y0);p[2]=Math.max(p[2],x1);p[3]=Math.max(p[3],y1);}
+}
+/* wet paint and smudge work straight on the layer: a small paint buffer picks up what's underneath */
+function directDab(st,d){
+  const L=st.L,s=st.buf.width,sz=d.s,bx=st.bx,mx=st.mx;
+  if(st.tool!=='smudge'&&st.b.load>0){bx.globalCompositeOperation='source-over';bx.globalAlpha=clamp(st.charge,0,1);bx.fillStyle=d.col;bx.fillRect(0,0,s,s);st.charge*=st.b.load;}
+  mx.globalCompositeOperation='source-over';mx.globalAlpha=1;mx.clearRect(0,0,s,s);
+  dabTo(mx,st.b,{x:s/2,y:s/2,s:s,a:1,ang:d.ang,seed:d.seed},'#ffffff');
+  if(st.b.grain){mx.globalAlpha=1;mx.globalCompositeOperation='destination-in';const k=s/sz;mx.fillStyle=grainPattern(mx,st.b,new DOMMatrix().scale(k).translate(-(d.x-sz/2),-(d.y-sz/2)).scale(st.b.grainScale));mx.fillRect(0,0,s,s);}
+  mx.globalAlpha=1;mx.globalCompositeOperation='source-in';mx.drawImage(st.buf,0,0);
+  const c=L.ctx;c.save();c.globalAlpha=clamp(d.a*st.opacity,0,1);if(L.alphaLock)c.globalCompositeOperation='source-atop';c.drawImage(st.mask,d.x-sz/2,d.y-sz/2,sz,sz);c.restore();
+  bx.globalCompositeOperation='source-over';bx.globalAlpha=st.tool==='smudge'?.3:clamp(st.b.wet,0,1);if(bx.globalAlpha>0)bx.drawImage(L.canvas,d.x-sz/2,d.y-sz/2,sz,sz,0,0,s,s);
+}
+/* re-render with the end taper once we know where the stroke stops */
+function finalizeStroke(st){
+  if(st.direct||!st.dabs.length||!st.b.taperE||st.snapped)return;
+  const L=st.base,tl=st.b.taperE*st.size*4;st.ctx.clearRect(0,0,st.w,st.h);
+  for(const d of st.dabs)dabTo(st.ctx,st.b,{...d,s:d.s*taperF(L-d.dist,tl)},d.col);
+  st.pend=st.box.slice();
+}
+
+/* live stroke on the canvas */
+let stroke=null,texC=mk(1,1),tctx=texC.getContext('2d');
+function strokeSrc(st){return st&&st.b&&st.b.grain&&!st.direct?texC:strokeC;}
+function updateTex(){const st=stroke;if(!st||!st.b||!st.b.grain||st.direct||!st.pend)return;const r=clipRect(st.pend);st.pend=null;if(!r)return;
+  tctx.save();tctx.globalCompositeOperation='source-over';tctx.globalAlpha=1;tctx.clearRect(r[0],r[1],r[2],r[3]);tctx.drawImage(strokeC,r[0],r[1],r[2],r[3],r[0],r[1],r[2],r[3]);
+  tctx.globalCompositeOperation='destination-in';tctx.fillStyle=st.pat;tctx.fillRect(r[0],r[1],r[2],r[3]);tctx.restore();}
 function strokeBegin(p){
   const L=active();if(!L)return false;if(!L.visible){toast('This layer is hidden');return false;}
-  const tool=S.tool,b=brushById(S.brushFor[tool]);
-  const st=stroke={tool,b,size:S.size[tool],opacity:S.opacity[tool],color:tool==='eraser'?'#000000':S.color,
-    mode:tool==='eraser'?'destination-out':(L.alphaLock?'source-atop':'source-over'),
-    direct:tool==='smudge',sm:{x:p.x,y:p.y},last:null,next:0,dist:0,speed:0,t:p.t,pen:p.pen,box:[Infinity,Infinity,-Infinity,-Infinity],L};
-  sctx.setTransform(1,0,0,1,0,0);sctx.globalCompositeOperation='source-over';sctx.clearRect(0,0,W,H);sctx.fillStyle=st.color;
-  if(st.direct){st.before=grab(L,fullRect());const s=Math.max(2,Math.ceil(st.size));st.buf=mk(s,s);st.bx=st.buf.getContext('2d');st.mask=mk(s,s);st.mx=st.mask.getContext('2d');st.bx.drawImage(L.canvas,p.x-s/2,p.y-s/2,s,s,0,0,s,s);}
-  strokeAdd(p,true);return true;
+  const tool=S.tool,b=brushById(S.brushFor[tool]);const direct=tool==='smudge'||(tool==='brush'&&b.wet>0);
+  sctx.setTransform(1,0,0,1,0,0);sctx.globalCompositeOperation='source-over';sctx.globalAlpha=1;sctx.clearRect(0,0,W,H);tctx.clearRect(0,0,W,H);
+  stroke=makeStroke({tool,b,size:S.size[tool],opacity:S.opacity[tool]*(tool==='brush'?b.maxOpa:1),color:tool==='eraser'?'#000000':S.color,ctx:sctx,w:W,h:H,L,mirror:S.symmetry&&!direct,direct,pen:p.pen,start:p,
+    mode:tool==='eraser'?'destination-out':L.alphaLock?'source-atop':b.glow?'lighter':(b.blend||'source-over')});
+  if(b.grain&&!direct)stroke.pat=grainPattern(tctx,b);
+  if(direct)stroke.before=grab(L,fullRect());
+  strokeAdd(stroke,p,true);return true;
 }
-function pressureOf(p){const st=stroke;if(st.pen&&p.pressure>0)return clamp(p.pressure,.05,1);const thin=st.b.speedThin||0;return 1-thin*clamp(st.speed/3,0,1)*.85;}
-function strokeAdd(p,first){
-  const st=stroke;const dt=Math.max(1,p.t-st.t);
-  const k=first?1:1-S.streamline*.88;
-  const nx=lerp(st.sm.x,p.x,k),ny=lerp(st.sm.y,p.y,k);
+function strokeAdd(st,p,first){
+  if(st.snapped)return;const dt=Math.max(1,p.t-st.t);
+  const k=first?1:1-st.b.stream*.88;const nx=lerp(st.sm.x,p.x,k),ny=lerp(st.sm.y,p.y,k);
   if(!first){const sp=Math.hypot(nx-st.sm.x,ny-st.sm.y)*S.view.scale/dt;st.speed=lerp(st.speed,sp,.25);}
-  st.sm.x=nx;st.sm.y=ny;st.t=p.t;
-  const pr=pressureOf(p);
-  if(first){st.last={x:nx,y:ny,pr};emit(nx,ny,pr,0);st.next=Math.max(.4,st.size*st.b.spacing);requestRender();return;}
-  const dx=nx-st.last.x,dy=ny-st.last.y,d=Math.hypot(dx,dy);if(d<.01)return;
-  const ang=Math.atan2(dy,dx);
-  while(st.next<=d){const f=st.next/d;const ppr=lerp(st.last.pr,pr,f);emit(st.last.x+dx*f,st.last.y+dy*f,ppr,ang);st.dist+=Math.max(.4,st.size*st.b.spacing);st.next+=Math.max(.4,st.size*st.b.spacing*(.35+.65*ppr));}
-  st.next-=d;st.last={x:nx,y:ny,pr};requestRender();
-}
-function emit(x,y,pr,ang){
-  const st=stroke,b=st.b;let sz=st.size*(.22+.78*pr);
-  if(b.taper)sz*=.3+.7*clamp(st.dist/(st.size*3.5),0,1);
-  if(b.jitter)sz*=1+(Math.random()-.5)*b.jitter*2;
-  if(b.scatter){x+=(Math.random()-.5)*st.size*b.scatter*2;y+=(Math.random()-.5)*st.size*b.scatter*2;}
-  const a=b.flow*(b.shape==='grain'?.45+.55*pr:1);
-  const pts=[[x,y,ang]];if(S.symmetry&&!st.direct)pts.push([W-x,y,Math.PI-ang]);
-  for(const [px,py,pa] of pts){
-    if(st.direct)smudgeDab(px,py,sz);else dab(sctx,b,px,py,sz,a,pa,st.color);
-    const m=sz/2+2;st.box[0]=Math.min(st.box[0],px-m);st.box[1]=Math.min(st.box[1],py-m);st.box[2]=Math.max(st.box[2],px+m);st.box[3]=Math.max(st.box[3],py+m);
-  }
-}
-let softMask=null;
-function smudgeDab(x,y,sz){
-  const st=stroke,L=st.L,s=st.buf.width;if(!softMask)softMask=stamp('soft','#ffffff');
-  const mx=st.mx;mx.globalCompositeOperation='source-over';mx.clearRect(0,0,s,s);mx.drawImage(st.buf,0,0);mx.globalCompositeOperation='destination-in';mx.drawImage(softMask,0,0,s,s);
-  L.ctx.save();L.ctx.globalAlpha=st.opacity;if(L.alphaLock)L.ctx.globalCompositeOperation='source-atop';L.ctx.drawImage(st.mask,x-sz/2,y-sz/2,sz,sz);L.ctx.restore();
-  st.bx.globalAlpha=.3;st.bx.drawImage(L.canvas,x-s/2,y-s/2,s,s,0,0,s,s);st.bx.globalAlpha=1;
+  st.sm={x:nx,y:ny};st.t=p.t;
+  const pr=st.pen&&p.pressure>0?clamp(p.pressure,.05,1):1-(st.b.speedThin||0)*clamp(st.speed/3,0,1)*.85;
+  st.path.push({x:p.x,y:p.y});st.prs.push(pr);st.lastRaw={x:p.x,y:p.y,pr};
+  pathTo(st,nx,ny,pr);requestRender();
 }
 function clipRect(b){const x0=clamp(Math.floor(b[0]),0,W),y0=clamp(Math.floor(b[1]),0,H),x1=clamp(Math.ceil(b[2]),0,W),y1=clamp(Math.ceil(b[3]),0,H);return(x1>x0&&y1>y0)?[x0,y0,x1-x0,y1-y0]:null;}
 function strokeEnd(){
-  const st=stroke;if(!st)return;stroke=null;const L=st.L;
+  const st=stroke;if(!st)return;clearTimeout(qsTimer);
+  if(!st.snapped&&st.lastRaw)pathTo(st,st.lastRaw.x,st.lastRaw.y,st.lastRaw.pr);
+  stroke=null;const L=st.L;
   if(st.direct){const tb=L.text;const after=grab(L,fullRect());L.text=null;pushOp(pixelOp(L,fullRect(),st.before,after,tb,null));return;}
-  const r=clipRect(st.box);if(!r){requestRender();return;}
-  editPixels(L,r,()=>{L.ctx.save();L.ctx.globalAlpha=st.opacity;L.ctx.globalCompositeOperation=st.mode;L.ctx.drawImage(strokeC,0,0);L.ctx.restore();});
-  sctx.clearRect(0,0,W,H);
+  finalizeStroke(st);stroke=st;updateTex();stroke=null;
+  const r=clipRect(st.box);if(!r){requestRender();return;}const src=strokeSrc(st);
+  editPixels(L,r,()=>{L.ctx.save();L.ctx.globalAlpha=st.opacity;L.ctx.globalCompositeOperation=st.mode;L.ctx.drawImage(src,0,0);L.ctx.restore();});
+  sctx.clearRect(0,0,W,H);tctx.clearRect(0,0,W,H);
 }
-function strokeAbort(){const st=stroke;if(!st)return;stroke=null;if(st.direct)st.L.ctx.putImageData(st.before,0,0);sctx.clearRect(0,0,W,H);requestRender();}
+function strokeAbort(){const st=stroke;if(!st)return;clearTimeout(qsTimer);stroke=null;if(st.direct&&st.before)st.L.ctx.putImageData(st.before,0,0);sctx.clearRect(0,0,W,H);tctx.clearRect(0,0,W,H);requestRender();}
+
+/* ============ QuickShape: hold at the end of a stroke to snap it ============ */
+let qsTimer=null,qsAnchor=null;
+function armQuickShape(sx,sy){
+  if(!S.quickshape||!stroke||stroke.direct||stroke.snapped||!stroke.b)return;
+  if(qsAnchor&&Math.hypot(sx-qsAnchor.x,sy-qsAnchor.y)<4)return;qsAnchor={x:sx,y:sy};
+  clearTimeout(qsTimer);qsTimer=setTimeout(doQuickShape,550);
+}
+function doQuickShape(){
+  const st=stroke;if(!st||st.direct||st.snapped||ptrs.size!==1)return;
+  const shp=detectShape(st.path);if(!shp)return;
+  const pr=st.prs.reduce((a,b)=>a+b,0)/st.prs.length;
+  Object.assign(st,{dabs:[],last:null,next:0,base:0,dist:0,box:[Infinity,Infinity,-Infinity,-Infinity],pend:null,snapped:true});
+  sctx.clearRect(0,0,W,H);tctx.clearRect(0,0,W,H);
+  for(const q of shp.pts)pathTo(st,q.x,q.y,pr);
+  toast('QuickShape: '+shp.name);requestRender();
+}
+const pdist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function segDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;if(!l)return pdist(p,a);const t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/l,0,1);return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);}
+function rdp(pts,eps){if(pts.length<3)return pts.slice();let mi=0,md=0;const a=pts[0],z=pts[pts.length-1];for(let i=1;i<pts.length-1;i++){const d=segDist(pts[i],a,z);if(d>md){md=d;mi=i;}}
+  if(md<=eps)return[a,z];const l=rdp(pts.slice(0,mi+1),eps),r=rdp(pts.slice(mi),eps);return l.slice(0,-1).concat(r);}
+function dropFlat(poly,closed,deg){const lim=deg*Math.PI/180;let ch=true;while(ch&&poly.length>(closed?3:2)){ch=false;const n=poly.length;for(let i=closed?0:1;i<(closed?n:n-1);i++){const p=poly[(i-1+n)%n],c=poly[i],q=poly[(i+1)%n];
+  let t=Math.abs(Math.atan2(q.y-c.y,q.x-c.x)-Math.atan2(c.y-p.y,c.x-p.x));if(t>Math.PI)t=TAU-t;if(t<lim){poly.splice(i,1);ch=true;break;}}}return poly;}
+function detectShape(raw){
+  const pts=raw.filter((p,i)=>i===0||pdist(p,raw[i-1])>.5);if(pts.length<5)return null;
+  let L=0;for(let i=1;i<pts.length;i++)L+=pdist(pts[i],pts[i-1]);const sc=S.view.scale;if(L<24/sc)return null;
+  const a=pts[0],z=pts[pts.length-1];let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;for(const p of pts){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y);}
+  const diag=Math.hypot(x1-x0,y1-y0)||1;
+  let dev=0;for(const p of pts)dev=Math.max(dev,segDist(p,a,z));
+  if(dev<Math.max(.045*L,3/sc))return{name:'Line',pts:[a,z]};
+  const closed=pdist(a,z)<Math.max(.22*diag,14/sc)&&L>1.8*diag;
+  if(closed){
+    const poly=dropFlat(rdp([...pts,a],.045*diag).slice(0,-1),true,28);
+    if(poly.length===3)return{name:'Triangle',pts:[...poly,poly[0]]};
+    if(poly.length===4){const axis=poly.every((p,i)=>{const q=poly[(i+1)%4];let t=Math.abs(Math.atan2(q.y-p.y,q.x-p.x))%(Math.PI/2);return t<.2||t>Math.PI/2-.2;});
+      if(axis){let a0=Infinity,b0=Infinity,a1=-Infinity,b1=-Infinity;for(const p of poly){a0=Math.min(a0,p.x);b0=Math.min(b0,p.y);a1=Math.max(a1,p.x);b1=Math.max(b1,p.y);}const r=[{x:a0,y:b0},{x:a1,y:b0},{x:a1,y:b1},{x:a0,y:b1}];return{name:'Rectangle',pts:[...r,r[0]]};}
+      return{name:'Quad',pts:[...poly,poly[0]]};}
+    let mx=0,my=0;for(const p of pts){mx+=p.x;my+=p.y;}mx/=pts.length;my/=pts.length;let sxx=0,syy=0,sxy=0;for(const p of pts){const dx=p.x-mx,dy=p.y-my;sxx+=dx*dx;syy+=dy*dy;sxy+=dx*dy;}
+    const th=.5*Math.atan2(2*sxy,sxx-syy),co=Math.cos(th),si=Math.sin(th);let u0=Infinity,u1=-Infinity,v0=Infinity,v1=-Infinity;
+    for(const p of pts){const dx=p.x-mx,dy=p.y-my,u=dx*co+dy*si,v=-dx*si+dy*co;u0=Math.min(u0,u);u1=Math.max(u1,u);v0=Math.min(v0,v);v1=Math.max(v1,v);}
+    let rx=(u1-u0)/2,ry=(v1-v0)/2;const cu=(u1+u0)/2,cv=(v1+v0)/2,cx=mx+cu*co-cv*si,cy=my+cu*si+cv*co;
+    let err=0;for(const p of pts){const dx=p.x-cx,dy=p.y-cy,u=dx*co+dy*si,v=-dx*si+dy*co;err+=Math.abs(Math.hypot(u/rx,v/ry)-1);}err/=pts.length;if(err>.2)return null;
+    const circ=rx/ry>.85&&rx/ry<1/.85;if(circ)rx=ry=(rx+ry)/2;
+    const dx=a.x-cx,dy=a.y-cy,t0=Math.atan2((-dx*si+dy*co)/ry,(dx*co+dy*si)/rx),out=[];
+    for(let i=0;i<=128;i++){const t=t0+i/128*TAU,u=Math.cos(t)*rx,v=Math.sin(t)*ry;out.push({x:cx+u*co-v*si,y:cy+u*si+v*co});}
+    return{name:circ?'Circle':'Ellipse',pts:out};
+  }
+  const poly=dropFlat(rdp(pts,.035*diag),false,20);if(poly.length<=4)return{name:'Polyline',pts:poly};
+  const m=pts[pts.length>>1];const d=2*(a.x*(m.y-z.y)+m.x*(z.y-a.y)+z.x*(a.y-m.y));if(Math.abs(d)<1e-6)return null;
+  const A=a.x*a.x+a.y*a.y,M=m.x*m.x+m.y*m.y,Z=z.x*z.x+z.y*z.y;const cx=(A*(m.y-z.y)+M*(z.y-a.y)+Z*(a.y-m.y))/d,cy=(A*(z.x-m.x)+M*(a.x-z.x)+Z*(m.x-a.x))/d,r=Math.hypot(a.x-cx,a.y-cy);
+  if(r>6*diag)return null;for(const p of pts)if(Math.abs(pdist(p,{x:cx,y:cy})-r)>.08*r)return null;
+  const ta=Math.atan2(a.y-cy,a.x-cx),tm=Math.atan2(m.y-cy,m.x-cx),tz=Math.atan2(z.y-cy,z.x-cx);const norm=t=>((t%TAU)+TAU)%TAU;
+  let sweep=norm(tz-ta);if(norm(tm-ta)>sweep)sweep-=TAU;const out=[];for(let i=0;i<=64;i++){const t=ta+sweep*i/64;out.push({x:cx+Math.cos(t)*r,y:cy+Math.sin(t)*r});}
+  return{name:'Arc',pts:out};
+}
+
+/* brush preview strip (library + studio) */
+const previewCache=new Map();
+function brushPreview(b,w,h,o={}){
+  const key=[b.id,JSON.stringify(b),w,h,o.color||'',o.paper?1:0].join('|');if(previewCache.has(key))return previewCache.get(key);
+  const out=mk(w,h),oc=out.getContext('2d');if(o.paper){oc.fillStyle=o.paperColor||'#f4f1ea';oc.fillRect(0,0,w,h);}
+  const col=o.color||'#eceef2',size=h*(['spray','splatter','leaf','star','grass'].includes(b.shape)||b.scatter>.4?.2:.24),direct=b.wet>0;
+  let lay=null;if(direct){const c=mk(w,h);lay={canvas:c,ctx:c.getContext('2d')};[['#e8574a',.3],['#f2c14e',.5],['#3f7fd9',.7]].forEach(([cl,t])=>{lay.ctx.fillStyle=cl;lay.ctx.fillRect(w*t-w*.07,h*.12,w*.14,h*.76);});}
+  const buf=mk(w,h),bc=buf.getContext('2d');
+  const st=makeStroke({tool:'brush',b,size,opacity:1,color:col,ctx:bc,w,h,L:lay,mirror:false,direct,pen:true,start:{x:w*.06,y:h/2}});
+  for(let i=0;i<=140;i++){const t=i/140;pathTo(st,w*.06+t*w*.88,h/2+Math.sin(t*TAU)*h*.2,.25+.75*Math.sin(t*Math.PI));}
+  finalizeStroke(st);
+  if(direct)oc.drawImage(lay.canvas,0,0);
+  else{if(b.grain){bc.save();bc.globalAlpha=1;bc.globalCompositeOperation='destination-in';bc.fillStyle=grainPattern(bc,b);bc.fillRect(0,0,w,h);bc.restore();}
+    oc.globalCompositeOperation=b.glow&&!o.paper?'lighter':(o.paper&&b.blend)||'source-over';oc.globalAlpha=b.maxOpa;oc.drawImage(buf,0,0);}
+  if(previewCache.size>150)previewCache.clear();previewCache.set(key,out);return out;
+}
 
 /* ============ shapes ============ */
 let shapeDraft=null;
@@ -474,7 +691,7 @@ function drawShapeDraft(){
   const draw=()=>{const b=shapePath(sctx,d.k,d.x0,d.y0,d.x1,d.y1);if(S.shape.fill&&d.k!=='line')sctx.fill();else sctx.stroke();return b;};
   let b=draw();if(S.symmetry){sctx.save();sctx.translate(W,0);sctx.scale(-1,1);draw();sctx.restore();b=[Math.min(b[0],W-b[2]),b[1],Math.max(b[2],W-b[0]),b[3]];}
   const m=S.size.brush;d.box=[b[0]-m,b[1]-m,b[2]+m,b[3]+m];
-  stroke={direct:false,opacity:S.opacity.brush,mode:active().alphaLock?'source-atop':'source-over',L:active(),box:d.box,shape:true};
+  stroke={b:null,direct:false,opacity:S.opacity.brush,mode:active().alphaLock?'source-atop':'source-over',L:active(),box:d.box,shape:true};
   requestRender();
 }
 
@@ -636,7 +853,7 @@ $('#fileIn').addEventListener('change',e=>{const f=e.target.files[0];e.target.va
 function endSessions(keep){if(stroke)strokeAbort();if(textSess){closeSheetSilently();textCommit();}if(adj){if(sheetName==='adjust')closeSheetSilently();adjEnd(keep);}if(xform){keep?xformApply():xformCancel();}}
 
 /* ============ pointer input ============ */
-const ptrs=new Map();let gesture=null,tap=null,blockUntilClear=false,acting=null,holdTimer=null,holdPick=false;
+const ptrs=new Map();let gesture=null,tap=null,blockUntilClear=false,acting=null;
 function pt(e){const r=stage.getBoundingClientRect();return{sx:e.clientX-r.left,sy:e.clientY-r.top};}
 function docPt(e){const {sx,sy}=pt(e);const d=toDoc(sx,sy);return{x:d.x,y:d.y,sx,sy,pressure:e.pressure,pen:e.pointerType==='pen',t:e.timeStamp||performance.now()};}
 stage.addEventListener('pointerdown',e=>{
@@ -652,6 +869,7 @@ stage.addEventListener('pointermove',e=>{
   if(tap&&Math.hypot(sx-p.x0,sy-p.y0)>10)tap.moved=true;
   if(gesture){updateGesture();return;}if(blockUntilClear||!acting)return;
   const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];for(const ce of (evs.length?evs:[e]))toolMove(ce);
+  if(stroke&&acting!=='picker')armQuickShape(sx,sy);
 });
 const up=e=>{
   if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
@@ -671,11 +889,11 @@ function updateGesture(){const vals=[...ptrs.values()];if(vals.length<2)return;c
   const ns=clamp(g.s0*d/g.d0,.03,40);const dx=(g.m0.x-g.tx0)/g.s0,dy=(g.m0.y-g.ty0)/g.s0;S.view.scale=ns;S.view.tx=m.x-dx*ns;S.view.ty=m.y-dy*ns;showZoom();requestRender();}
 
 function toolDown(e){
-  const p=docPt(e);acting=S.tool;
+  const p=docPt(e);acting=S.tool;qsAnchor=null;
+  if(S.pickOnce){acting='picker';pickMove(p.sx,p.sy);return;}
   switch(S.tool){
     case 'brush':case 'eraser':case 'smudge':
       if(!strokeBegin(p)){acting=null;return;}
-      if(S.tool==='brush'){clearTimeout(holdTimer);holdTimer=setTimeout(()=>{if(acting==='brush'&&tap&&!tap.moved&&ptrs.size===1){strokeAbort();acting='picker';holdPick=true;pickMove(p.sx,p.sy);}},480);}
       break;
     case 'picker':pickMove(p.sx,p.sy);break;
     case 'shape':{const L=active();if(!L||!L.visible){toast(L?'This layer is hidden':'No layer');acting=null;return;}shapeDraft={k:S.shape.kind,x0:p.x,y0:p.y,x1:p.x,y1:p.y};break;}
@@ -687,22 +905,22 @@ function toolMove(e){
   const p=docPt(e);
   if(acting==='picker'){pickMove(p.sx,p.sy);return;}
   switch(S.tool){
-    case 'brush':case 'eraser':case 'smudge':if(stroke)strokeAdd(p,false);break;
+    case 'brush':case 'eraser':case 'smudge':if(stroke)strokeAdd(stroke,p,false);break;
     case 'shape':if(shapeDraft){shapeDraft.x1=p.x;shapeDraft.y1=p.y;drawShapeDraft();}break;
     case 'move':if(xform&&acting&&acting.x!==undefined){xform.dx=acting.dx+(p.sx-acting.x)/S.view.scale;xform.dy=acting.dy+(p.sy-acting.y)/S.view.scale;requestRender();}break;
   }
 }
 function toolUp(e){
-  clearTimeout(holdTimer);const p=docPt(e);const was=acting;acting=null;
-  if(was==='picker'){pickEnd();holdPick=false;return;}
+  clearTimeout(qsTimer);const p=docPt(e);const was=acting;acting=null;
+  if(was==='picker'){pickEnd();if(S.pickOnce){S.pickOnce=false;$('#bPick').classList.remove('on');}return;}
   switch(S.tool){
-    case 'brush':case 'eraser':case 'smudge':if(stroke){strokeAdd(p,false);strokeEnd();}break;
+    case 'brush':case 'eraser':case 'smudge':if(stroke){strokeAdd(stroke,p,false);strokeEnd();}break;
     case 'shape':if(shapeDraft){const d=shapeDraft;shapeDraft=null;if(Math.hypot(d.x1-d.x0,d.y1-d.y0)<2){stroke=null;sctx.clearRect(0,0,W,H);requestRender();break;}const L=stroke.L,box=stroke.box,mode=stroke.mode,op=stroke.opacity;stroke=null;const r=clipRect(box);if(r)editPixels(L,r,()=>{L.ctx.save();L.ctx.globalAlpha=op;L.ctx.globalCompositeOperation=mode;L.ctx.drawImage(strokeC,0,0);L.ctx.restore();});sctx.clearRect(0,0,W,H);}break;
     case 'fill':if(tap&&!tap.moved)floodFill(p.x,p.y);break;
     case 'text':if(tap&&!tap.moved)textTap(p);break;
   }
 }
-function cancelTool(){clearTimeout(holdTimer);if(acting==='picker'){loupe=null;}if(stroke)strokeAbort();shapeDraft=null;if(S.tool==='move'&&xform&&acting&&acting.x!==undefined){xform.dx=acting.dx;xform.dy=acting.dy;}acting=null;requestRender();}
+function cancelTool(){clearTimeout(qsTimer);if(acting==='picker'){loupe=null;}if(stroke)strokeAbort();shapeDraft=null;if(S.tool==='move'&&xform&&acting&&acting.x!==undefined){xform.dx=acting.dx;xform.dy=acting.dy;}acting=null;requestRender();}
 
 /* ============ side sliders ============ */
 let sizePreview=false;
@@ -724,7 +942,7 @@ bindSlider('#vsSize','size');bindSlider('#vsOpa','opa');
 const TOOLS=[['brush','Brush'],['smudge','Smudge'],['eraser','Eraser'],['fill','Fill'],['shape','Shapes'],['text','Text'],['move','Move & transform'],['picker','Eyedropper']];
 $('#dock').innerHTML=TOOLS.map(([k,n])=>`<button class="ib" data-tool="${k}" aria-label="${n}">${svg(k)}</button>`).join('');
 $('#dock').addEventListener('click',e=>{const b=e.target.closest('[data-tool]');if(!b)return;const k=b.dataset.tool;
-  if(k===S.tool){const sh={brush:'brushes',eraser:'brushes',smudge:'brushes',shape:'shape',fill:'fill'}[k];if(sh)openSheet(sh);else if(k==='text')toast('Tap the canvas to add text');else if(k==='picker')toast('Touch and drag on the canvas to pick a colour');return;}
+  if(k===S.tool){const sh={brush:'brushes',eraser:'brushes',smudge:'brushes',shape:'shape',fill:'fill'}[k];if(sh==='brushes'&&sheetName==='studio'){closeSheet();return;}if(sh)openSheet(sh);else if(k==='text')toast('Tap the canvas to add text');else if(k==='picker')toast('Touch and drag on the canvas to pick a colour');return;}
   setTool(k);});
 function setTool(k){
   if(S.tool==='move'&&k!=='move')xformApply();
@@ -733,13 +951,25 @@ function setTool(k){
   updateSliders();
   if(k==='move')xformBegin();
   const hint={fill:'Tap an area to fill it',text:'Tap the canvas to place text',picker:'Drag on the canvas to pick a colour',shape:'Drag to draw · tap Shapes again for options'}[k];if(hint)toast(hint);
-  if(sheetName&&['brushes','shape','fill'].includes(sheetName))closeSheet();
+  if(sheetName&&['brushes','studio','shape','fill'].includes(sheetName))closeSheet();
 }
 ['#bGallery','back','#bUndo','undo','#bRedo','redo','#bActions','actions','#bAdjust','adjust','#bLayers','layers'].reduce((a,v,i,arr)=>{if(i%2===0)$(v).innerHTML=svg(arr[i+1]);return a;},0);
 $('#bUndo').onclick=undo;$('#bRedo').onclick=redo;
-$('#bLayers').onclick=()=>openSheet('layers');$('#bActions').onclick=()=>openSheet('actions');$('#bColor').onclick=()=>openSheet('color');
+$('#bLayers').onclick=()=>openSheet('layers');$('#bActions').onclick=()=>openSheet('actions');
 $('#bAdjust').onclick=()=>{if(!active())return;openSheet('adjust');};
 $('#bGallery').onclick=async()=>{endSessions(true);closeSheet();await saveNow();showGallery();};
+
+/* ============ ColorDrop + eyedropper button ============ */
+(()=>{const btn=$('#bColor');let st=null;const dot=document.createElement('div');dot.id='dropDot';dot.hidden=true;document.body.appendChild(dot);
+  btn.addEventListener('pointerdown',e=>{st={x:e.clientX,y:e.clientY,drag:false};try{btn.setPointerCapture(e.pointerId);}catch(_){}});
+  btn.addEventListener('pointermove',e=>{if(!st)return;if(!st.drag&&Math.hypot(e.clientX-st.x,e.clientY-st.y)>14){st.drag=true;dot.style.background=S.color;dot.hidden=false;if(sheetName)closeSheet();}if(st.drag){dot.style.left=e.clientX+'px';dot.style.top=e.clientY+'px';}});
+  btn.addEventListener('pointerup',e=>{if(!st)return;const s=st;st=null;dot.hidden=true;if(!s.drag){openSheet('color');return;}const r=stage.getBoundingClientRect();
+    if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){const d=toDoc(e.clientX-r.left,e.clientY-r.top+(-46*.35));endSessions(true);floodFill(d.x,d.y);toast('Filled with '+S.color.toUpperCase());}});
+  btn.addEventListener('pointercancel',()=>{st=null;dot.hidden=true;});
+  btn.addEventListener('click',e=>{if(e.detail===0)openSheet('color');});
+  const pk=$('#bPick');pk.innerHTML=svg('picker');pk.addEventListener('pointerdown',e=>e.stopPropagation());
+  pk.onclick=()=>{S.pickOnce=!S.pickOnce;pk.classList.toggle('on',S.pickOnce);if(S.pickOnce)toast('Touch the canvas to pick a colour');};
+})();
 
 /* ============ colour ============ */
 function setColor(hex,fromPick){S.color=hex.toLowerCase();S.hsv=rgbToHsv(...hexToRgb(hex));$('#bColor').style.background=S.color;if(fromPick||!setColor.dragging)pushRecent(S.color);if(sheetName==='color')syncColorSheet();if(textSess&&textSess.L.text){textSess.L.text.color=S.color;renderText(textSess.L);requestRender();}}
@@ -748,19 +978,56 @@ function pushRecent(c){S.recents=[c,...S.recents.filter(x=>x!==c)].slice(0,12);s
 /* ============ sheets ============ */
 let sheetName=null;
 const sheet=$('#sheet'),body=$('#sheetBody');
-function openSheet(n){if(sheetName===n){closeSheet();return;}closeSheet();sheetName=n;sheet.hidden=false;buildSheet();}
+function openSheet(n){if(sheetName===n){closeSheet();return;}if(sheetName&&['brushes','studio'].includes(sheetName)&&['brushes','studio'].includes(n)){sheetName=n;body.scrollTop=0;buildSheet();return;}closeSheet();sheetName=n;sheet.hidden=false;body.scrollTop=0;buildSheet();}
 function closeSheet(){if(!sheetName)return;const n=sheetName;sheetName=null;sheet.hidden=true;body.innerHTML='';if(n==='text')textCommit();if(n==='adjust')adjEnd(true);}
 function closeSheetSilently(){sheetName=null;sheet.hidden=true;body.innerHTML='';}
 function buildSheet(){const f=SHEETS[sheetName];if(f){const st=body.scrollTop;body.innerHTML='';body.onclick=null;f(body);body.scrollTop=st;}}
 const seg=(name,opts,cur)=>`<div class="seg" data-seg="${name}">${opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('')}</div>`;
 
 const SHEETS={
- brushes(b){const t=S.tool;b.innerHTML=`<div class="sh"><h3>${t==='eraser'?'Eraser':t==='smudge'?'Smudge':'Brush'} library</h3></div><div class="brushes">${BRUSHES.map(br=>`<button class="brushrow ${S.brushFor[t]===br.id?'on':''}" data-b="${br.id}"><canvas width="260" height="68"></canvas><div><b>${br.name}</b><span>${br.note}</span></div></button>`).join('')}</div>
-  <div class="sec">Stroke</div><div class="row"><label for="slStream">Streamline</label><input id="slStream" type="range" min="0" max="100" value="${Math.round(S.streamline*100)}"><output>${Math.round(S.streamline*100)}%</output></div>
-  <p class="empty">Streamline smooths wobbly lines. Higher values give cleaner curves for lettering.</p>`;
-  b.querySelectorAll('.brushrow').forEach(r=>previewBrush(r.querySelector('canvas'),brushById(r.dataset.b)));
-  b.onclick=e=>{const r=e.target.closest('[data-b]');if(!r)return;S.brushFor[t]=r.dataset.b;b.querySelectorAll('.brushrow').forEach(x=>x.classList.toggle('on',x===r));toast(brushById(r.dataset.b).name);};
-  b.querySelector('#slStream').oninput=e=>{S.streamline=e.target.value/100;e.target.nextElementSibling.textContent=e.target.value+'%';store.set('strata.streamline',S.streamline);};},
+ brushes(b){const t=S.tool;const sel=S.brushFor[t];const cur=brushById(sel);if(!CATS.some(c=>c[0]===S.brushCat))S.brushCat='ink';
+  const list=allBrushes().filter(x=>x.cat===S.brushCat);
+  b.innerHTML=`<div class="sh"><h3>${t==='eraser'?'Eraser':t==='smudge'?'Smudge':'Brush'} library</h3><span class="empty">${esc(cur.name)}</span></div>
+   <div class="chips cats" id="bCats">${CATS.map(([k,n])=>`<button class="chip ${k===S.brushCat?'on':''}" data-cat="${k}">${n}</button>`).join('')}</div>
+   <div class="brushes" style="margin-top:10px">${list.map(br=>`<div class="brushrow ${sel===br.id?'on':''}" data-b="${br.id}" role="button" tabindex="0"><canvas width="260" height="68" aria-hidden="true"></canvas><div class="bn"><b>${esc(br.name)}</b><span>${esc(br.note||'')}</span></div>${sel===br.id?'<button class="pill" data-edit>Edit</button>':''}</div>`).join('')||'<p class="empty">Brushes you duplicate in the Brush Studio show up here.</p>'}</div>
+   <p class="empty" style="margin-top:12px">Tap a brush to use it. Tap it again, or tap Edit, to open the Brush Studio. ${t==='brush'?'Painting brushes mix with the colours already on the layer.':''}</p>`;
+  b.querySelectorAll('.brushrow').forEach(r=>{const c=r.querySelector('canvas');c.getContext('2d').drawImage(brushPreview(brushById(r.dataset.b),260,68),0,0);});
+  b.onclick=e=>{const c=e.target.closest('[data-cat]');if(c){S.brushCat=c.dataset.cat;store.set('strata.cat',S.brushCat);buildSheet();return;}
+   const r=e.target.closest('[data-b]');if(!r)return;if(e.target.closest('[data-edit]')||S.brushFor[t]===r.dataset.b){S.studioId=r.dataset.b;openSheet('studio');return;}
+   S.brushFor[t]=r.dataset.b;buildSheet();toast(brushById(r.dataset.b).name);};},
+ studio(b){const id=S.studioId||S.brushFor[sizeKey()];const br=brushById(id);const custom=customBrushes.find(x=>x.id===id);
+  const pct=v=>Math.round(v*100)+'%';
+  const F=[
+   ['Stroke',[['spacing','Spacing',.01,2.5,.01,pct],['stream','Streamline',0,1,.01,pct],['taperS','Start taper',0,1,.01,pct],['taperE','End taper',0,1,.01,pct],['scatter','Scatter',0,2,.01,pct],['count','Dots per dab',1,40,1,v=>v]]],
+   ['Shape',[['shape','Tip','sel',[['round','Round'],['soft','Soft'],['square','Square'],['chisel','Chisel'],['flat','Flat'],['charcoal','Charcoal'],['bristle','Bristles'],['spray','Spray'],['splatter','Splatter'],['hatch','Hatching'],['leaf','Leaf'],['star','Star'],['grass','Grass'],['fur','Fur'],['glow','Glow core']]],['aspect','Roundness',.05,1,.01,pct],['angle','Angle',-1.57,1.57,.01,v=>Math.round(v*180/Math.PI)+'°'],['follow','Turn with stroke','tog'],['jAngle','Rotation jitter',0,1,.01,pct]]],
+   ['Grain',[['grain','Texture','sel',[['','None'],['paper','Paper'],['canvas','Canvas'],['charcoal','Charcoal'],['sponge','Sponge'],['noise','Noise']]],['grainScale','Scale',.25,4,.05,v=>v.toFixed(2)+'×'],['grainDepth','Depth',0,1,.01,pct]]],
+   ['Pressure and speed',[['sizeP','Pressure → size',0,1,.01,pct],['opP','Pressure → opacity',0,1,.01,pct],['speedThin','Fast strokes thin out',0,1,.01,pct]]],
+   ['Dynamics',[['flow','Flow',.01,1,.01,pct],['jSize','Size jitter',0,1,.01,pct],['jOpa','Opacity jitter',0,1,.01,pct],['jHue','Hue jitter',0,.5,.01,pct],['jBri','Brightness jitter',0,.5,.01,pct]]],
+   ['Wet paint',[['wet','Wet mix',0,1,.01,pct],['load','Paint load',0,1,.005,pct]]],
+   ['Rendering',[['glow','Glow (adds light)','tog'],['maxOpa','Max opacity',.05,1,.01,pct]]],
+  ];
+  const field=([k,l,a,c,d,fmt])=>{const v=br[k];if(a==='tog')return`<div class="row"><label style="flex:1;width:auto">${l}</label><div class="seg" style="flex:none;width:130px" data-tog="${k}"><button data-v="0" class="${v?'':'on'}">Off</button><button data-v="1" class="${v?'on':''}">On</button></div></div>`;
+    if(a==='sel')return`<div class="row"><label for="st_${k}">${l}</label><select id="st_${k}" data-k="${k}" style="flex:1">${c.map(([o,n])=>`<option value="${o}" ${String(v||'')===o?'selected':''}>${n}</option>`).join('')}</select></div>`;
+    return`<div class="row"><label for="st_${k}">${l}</label><input id="st_${k}" data-k="${k}" type="range" min="${a}" max="${c}" step="${d}" value="${v}"><output>${fmt(v)}</output></div>`;};
+  b.innerHTML=`<div class="sh"><button class="pill" id="stBack">‹ Library</button><h3 style="text-align:center">Brush Studio</h3><button class="pill accent" id="stUse">Use</button></div>
+   <canvas id="stPrev" class="stprev" width="640" height="190" aria-label="Brush preview"></canvas>
+   <div class="row">${custom?`<input type="text" id="stName" value="${esc(br.name)}" maxlength="30" style="flex:1" aria-label="Brush name">`:`<b style="flex:1">${esc(br.name)}</b>`}
+    <button class="pill" id="stDup">Duplicate</button>${custom?'<button class="pill danger" id="stDel">Delete</button>':`<button class="pill" id="stReset" ${brushMods[id]?'':'disabled'}>Reset</button>`}</div>
+   ${F.map(([h,fs])=>`<div class="sec">${h}</div>${fs.map(field).join('')}`).join('')}
+   <p class="empty" style="margin-top:12px">Changes save automatically on this device. Wet mix only works with the Brush tool.</p>`;
+  const draw=()=>{const c=b.querySelector('#stPrev');if(!c)return;const x=c.getContext('2d');x.clearRect(0,0,640,190);const dark=hexLum(S.color)>.82;x.drawImage(brushPreview(brushById(id),640,190,{paper:true,paperColor:dark?'#2a2e36':'#f4f1ea',color:S.color}),0,0);};
+  const set=(k,v)=>{if(custom){custom[k]=v;store.set('strata.custom',customBrushes);}else{brushMods[id]={...(brushMods[id]||{}),[k]:v};store.set('strata.brushmods',brushMods);const rs=b.querySelector('#stReset');if(rs)rs.disabled=false;}invalidateBrushes();Object.assign(br,{[k]:v});cancelAnimationFrame(set.raf);set.raf=requestAnimationFrame(draw);};
+  b.querySelectorAll('input[type=range]').forEach(i=>i.oninput=()=>{const k=i.dataset.k,fd=F.flatMap(f=>f[1]).find(f=>f[0]===k);const v=+i.value;i.nextElementSibling.textContent=fd[5](v);set(k,v);});
+  b.querySelectorAll('select[data-k]').forEach(i=>i.onchange=()=>set(i.dataset.k,i.value||null));
+  const nm=b.querySelector('#stName');if(nm)nm.onchange=()=>{const v=nm.value.trim();if(v)set('name',v);};
+  b.onclick=e=>{const tg=e.target.closest('[data-tog] button');if(tg){const k=tg.parentNode.dataset.tog;set(k,tg.dataset.v==='1');tg.parentNode.querySelectorAll('button').forEach(z=>z.classList.toggle('on',z===tg));return;}
+   const t=e.target.closest('button');if(!t)return;
+   if(t.id==='stBack'){S.brushCat=brushById(id).cat;openSheet('brushes');}
+   else if(t.id==='stUse'){S.brushFor[sizeKey()]=id;closeSheet();toast(brushById(id).name+' selected');}
+   else if(t.id==='stReset'){delete brushMods[id];store.set('strata.brushmods',brushMods);invalidateBrushes();buildSheet();toast('Brush reset');}
+   else if(t.id==='stDup'){const src=brushById(id);const nb={...src,id:'u'+uid(),name:src.name+' copy',cat:'mine'};customBrushes.push(nb);store.set('strata.custom',customBrushes);invalidateBrushes();S.studioId=nb.id;S.brushFor[sizeKey()]=nb.id;buildSheet();toast('Saved to My brushes');}
+   else if(t.id==='stDel'){customBrushes=customBrushes.filter(x=>x.id!==id);store.set('strata.custom',customBrushes);invalidateBrushes();for(const k in S.brushFor)if(S.brushFor[k]===id)S.brushFor[k]='studio';S.brushCat='mine';openSheet('brushes');toast('Brush deleted');}};
+  draw();},
  shape(b){const kinds=[['rect','Rectangle'],['round','Rounded'],['ellipse','Ellipse'],['line','Line'],['tri','Triangle'],['star','Star'],['hex','Hexagon']];
   b.innerHTML=`<div class="sh"><h3>Shapes</h3></div><div class="btns">${kinds.map(([k,n])=>`<button class="btn ${S.shape.kind===k?'on':''}" data-k="${k}">${n}</button>`).join('')}</div>
   <div class="sec">Style</div><div class="row">${seg('fill',[['1','Filled'],['0','Outline']],S.shape.fill?'1':'0')}</div>
@@ -817,10 +1084,11 @@ const SHEETS={
   <div class="sec">Canvas</div><div class="btns">
    <button class="btn ${S.grid?'on':''}" data-a="grid">${svg('grid')}<span>Grid guide<small>${S.grid?'On':'Off'}</small></span></button>
    <button class="btn ${S.symmetry?'on':''}" data-a="sym">${svg('sym')}<span>Symmetry<small>${S.symmetry?'Mirroring left ↔ right':'Off'}</small></span></button>
+   <button class="btn ${S.quickshape?'on':''}" data-a="qs">${svg('shape')}<span>QuickShape<small>${S.quickshape?'Hold at the end of a stroke to snap':'Off'}</small></span></button>
    <button class="btn" data-a="flip">${svg('flip')}<span>Flip canvas<small>Check your proportions</small></span></button>
    <button class="btn" data-a="fit">${svg('canvas')}<span>Fit to screen<small>${W} × ${H} px</small></span></button>
    <button class="btn" data-a="rename">${svg('rename')}<span>Rename<small>${esc(S.doc.name)}</small></span></button></div>
-  <p class="empty" style="margin-top:14px">Gestures: pinch to zoom · two-finger tap to undo · three-finger tap to redo · hold the brush still to pick a colour.</p>`;
+  <p class="empty" style="margin-top:14px">Gestures: pinch to zoom · two-finger tap to undo · three-finger tap to redo · draw a line or shape and hold to snap it · drag the colour dot onto the canvas to fill an area.</p>`;
   b.onclick=e=>{const a=e.target.closest('[data-a]');if(!a)return;const k=a.dataset.a;
    if(k==='photo'){closeSheet();$('#fileIn').click();}
    else if(k==='text'){closeSheet();setTool('text');}
@@ -829,6 +1097,7 @@ const SHEETS={
    else if(k==='grid'){S.grid=!S.grid;buildSheet();requestRender();}
    else if(k==='sym'){S.symmetry=!S.symmetry;buildSheet();requestRender();}
    else if(k==='flip'){flipCanvas();}
+   else if(k==='qs'){S.quickshape=!S.quickshape;store.set('strata.qs',S.quickshape);buildSheet();}
    else if(k==='fit'){fitView();closeSheet();}
    else if(k==='rename'){closeSheet();renameModal(S.doc.name,v=>{S.doc.name=v;$('#docName').textContent=v;scheduleSave();});}};},
  adjust(b){if(!adjBegin()){closeSheetSilently();return;}const a=adj;
@@ -878,12 +1147,6 @@ function drawSwatches(){const b=body,pal=b.querySelector('#pal'),rec=b.querySele
   rec.innerHTML=S.recents.map(c=>`<button class="sw" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
   pal.onclick=e=>{const t=e.target;if(t.closest('[data-padd]')){if(!P.includes(S.color)){P.push(S.color);scheduleSave();}drawSwatches();return;}if(t.closest('[data-pedit]')){palEdit=!palEdit;drawSwatches();return;}const s=t.closest('[data-pi]');if(s){const i=+s.dataset.pi;if(palEdit){P.splice(i,1);if(!P.length)palEdit=false;scheduleSave();drawSwatches();}else setColor(P[i],true);}};
   rec.onclick=e=>{const s=e.target.closest('[data-c]');if(s)setColor(s.dataset.c,true);};}
-function previewBrush(c,b){const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.fillStyle='#eceef2';const save=stroke;
-  stroke={b,size:16,opacity:1,color:'#eceef2',dist:0};let last=null;
-  for(let i=0;i<=200;i++){const t=i/200;const px=14+t*232,py=34+Math.sin(t*TAU)*16;const pr=b.speedThin?(.35+.65*Math.sin(t*Math.PI)):1;let sz=16*(.22+.78*pr);if(b.taper)sz*=.3+.7*clamp(t*6,0,1);
-    const ang=last?Math.atan2(py-last[1],px-last[0]):0;let x0=px,y0=py;if(b.scatter){x0+=(Math.random()-.5)*16*b.scatter*2;y0+=(Math.random()-.5)*16*b.scatter*2;}
-    if(i%Math.max(1,Math.round(b.spacing*16/1.2))===0)dab(x,b,x0,y0,b.jitter?sz*(1+(Math.random()-.5)*b.jitter*2):sz,b.flow*(b.shape==='soft'?1.6:1),ang,'#eceef2');last=[px,py];}
-  x.globalAlpha=1;stroke=save;}
 
 /* ============ export ============ */
 async function canvasBlob(c,type,q){return await new Promise(r=>c.toBlob(r,type,q));}
@@ -1000,7 +1263,7 @@ async function saveNow(){clearTimeout(saveTimer);if(!S.doc||!S.doc.dirty)return 
     await DB.put({id:d.id,name:d.name,w:W,h:H,bg:d.bg,bgVisible:d.bgVisible,palette:d.palette,updated:Date.now(),created:d.created||Date.now(),thumb:await canvasBlob(t,'image/png'),layers,activeIndex:d.layers.indexOf(d.active)});}catch(e){console.warn('save failed',e);}});
   return saving;}
 async function loadBitmap(blob){try{return await createImageBitmap(blob);}catch(e){return await new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=URL.createObjectURL(blob);});}}
-function setupDoc(w,h){W=w;H=h;comp=mk(W,H);cctx=comp.getContext('2d',{willReadFrequently:true});strokeC=mk(W,H);sctx=strokeC.getContext('2d');scratch=mk(W,H);xctx=scratch.getContext('2d');Hst.stack=[];Hst.idx=0;}
+function setupDoc(w,h){W=w;H=h;comp=mk(W,H);cctx=comp.getContext('2d',{willReadFrequently:true});strokeC=mk(W,H);sctx=strokeC.getContext('2d');texC=mk(W,H);tctx=texC.getContext('2d');scratch=mk(W,H);xctx=scratch.getContext('2d');Hst.stack=[];Hst.idx=0;}
 async function openProject(rec){
   setupDoc(rec.w,rec.h);const d={id:rec.id,name:rec.name,bg:rec.bg,bgVisible:rec.bgVisible,palette:rec.palette||[],created:rec.created,layers:[],active:null};
   for(const l of rec.layers){const L=newLayer(l.name);Object.assign(L,{visible:l.visible,opacity:l.opacity,blend:l.blend,alphaLock:l.alphaLock,text:l.text||null});if(l.blob){const bm=await loadBitmap(l.blob);if(bm)L.ctx.drawImage(bm,0,0);}d.layers.push(L);}
@@ -1010,15 +1273,15 @@ async function openProject(rec){
 function newProject(name,w,h,bg){setupDoc(w,h);const L=newLayer('Layer 1');S.doc={id:uid(),name,bg:bg||'#ffffff',bgVisible:true,palette:[],created:Date.now(),layers:[L],active:L,dirty:true};showEditor();saveNow();}
 
 /* ============ screens ============ */
-function showEditor(){$('#gallery').hidden=true;$('#editor').hidden=false;$('#docName').textContent=S.doc.name;$('#bColor').style.background=S.color;
+function showEditor(){const m=Math.max(W,H);S.size.brush=Math.max(3,Math.round(m*.018));S.size.eraser=Math.round(m*.045);S.size.smudge=Math.round(m*.045);$('#gallery').hidden=true;$('#editor').hidden=false;$('#docName').textContent=S.doc.name;$('#bColor').style.background=S.color;
   resize();fitView();setTool('brush');updateUndo();updateSliders();toast('Pinch to zoom · two-finger tap to undo');}
 let thumbURLs=[];
 async function showGallery(){S.doc=null;$('#editor').hidden=true;$('#gallery').hidden=false;
   const list=(await DB.all()).sort((a,b)=>b.updated-a.updated);if(!DB.ok)noticeStorage();
   thumbURLs.forEach(u=>URL.revokeObjectURL(u));thumbURLs=[];const g=$('#grid');
-  g.innerHTML=list.map(p=>{const u=p.thumb?URL.createObjectURL(p.thumb):'';thumbURLs.push(u);const dt=new Date(p.updated);return`<div class="card" data-id="${p.id}"><button class="thumb" data-open aria-label="Open ${esc(p.name)}">${u?`<img src="${u}" alt="">`:''}</button><div class="meta"><div><div class="nm">${esc(p.name)}</div><div class="dm">${p.w} × ${p.h} · ${dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div></div><button class="more" data-more aria-label="More options">•••</button></div></div>`;}).join('')
-   ||`<p class="empty" style="grid-column:1/-1">No canvases yet. Tap <b>New canvas</b> to start.</p>`;
-  g.onclick=async e=>{const card=e.target.closest('.card');if(!card)return;const id=card.dataset.id;
+  g.innerHTML=`<button class="card newcard" data-new><span>+</span><b>New canvas</b></button>`+list.map(p=>{const u=p.thumb?URL.createObjectURL(p.thumb):'';thumbURLs.push(u);const dt=new Date(p.updated);return`<div class="card" data-id="${p.id}"><button class="thumb" data-open aria-label="Open ${esc(p.name)}">${u?`<img src="${u}" alt="">`:''}</button><div class="meta"><div><div class="nm">${esc(p.name)}</div><div class="dm">${p.w} × ${p.h} · ${dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div></div><button class="more" data-more aria-label="More options">•••</button></div></div>`;}).join('')
+   ;
+  g.onclick=async e=>{if(e.target.closest('[data-new]')){$('#newBtn').click();return;}const card=e.target.closest('.card');if(!card)return;const id=card.dataset.id;
     if(e.target.closest('[data-open]')){const rec=await DB.get(id);if(rec)openProject(rec);return;}
     if(e.target.closest('[data-more]')){const ex=card.querySelector('.acts');if(ex){ex.remove();return;}const a=document.createElement('div');a.className='acts';a.innerHTML=`<button class="pill" data-r>Rename</button><button class="pill" data-d>Duplicate</button><button class="pill danger" data-x>Delete</button>`;card.appendChild(a);return;}
     if(e.target.closest('[data-r]')){const rec=await DB.get(id);renameModal(rec.name,async v=>{rec.name=v;await DB.put(rec);showGallery();});}
@@ -1035,7 +1298,7 @@ $('#newBtn').onclick=()=>{let sel=PRESETS[0];
   $('#pr').onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;sel=PRESETS[+b.dataset.i];document.querySelectorAll('#pr .preset').forEach(x=>x.classList.toggle('on',x===b));$('#nw').value=sel.w;$('#nh').value=sel.h;};
   $('#nGo').onclick=()=>{let w=Math.round(+$('#nw').value),h=Math.round(+$('#nh').value);if(!(w>=64&&h>=64&&w<=4096&&h<=4096)){$('#nwarn').textContent='Width and height must each be between 64 and 4096 px.';return;}
     if(w*h>12e6){$('#nwarn').textContent='That’s too big for iPhone memory. Keep it under 12 megapixels (for example 3000 × 4000).';return;}
-    closeModal();newProject($('#nn').value.trim()||'Untitled',w,h,$('#nbg').value);};};
+    const nm=$('#nn').value.trim()||'Untitled',bg=$('#nbg').value;closeModal();newProject(nm,w,h,bg);};};
 
 /* ============ sample ============ */
 async function seedSample(){
