@@ -4,9 +4,19 @@ An open-source 3D clothing mockup app for iPhone. Put your logos on T-shirts, ho
 
 It runs in Safari and can be added to your Home Screen. No App Store, no account, no 3D model files: every garment is built in code with Three.js.
 
-## Garments
+## Two ways to mock up
 
-T-shirt · Long sleeve · Tank top · Sweatshirt · Hoodie (with hood, drawstrings and kangaroo pocket) · Cap (6 panels, curved stitched brim) · Beanie (ribbed, optional pom-pom) · Tote bag
+**3D mode:** 16 garments built in code that you can spin, zoom and light.
+
+**Photo mode:** load any photo of a blank garment, such as a flat lay, a ghost-mannequin render or a model wearing it, and place your logo on it. The logo bends into the folds (a displacement map from the photo), takes on the fabric's shading and texture, and can be perspective-warped by dragging its corners. Move with one finger, and pinch to resize and rotate.
+
+## 3D garments
+
+**Tops:** T-shirt, oversized tee, long sleeve (dropped shoulder), tank top, sweatshirt, hoodie, boxy cropped hoodie, zip-up hoodie (zipper, split pockets)
+**Bottoms:** sweatpants, joggers (cuffed), shorts, all with waistband, drawcord, pocket openings and side seams
+**Accessories:** cap (6 panels), trucker hat (mesh back), bucket hat, beanie (optional pom-pom), socks (pair), tote bag
+
+Details include twin-needle stitching at hems, cuffs and collars, rib bands, hood edges and eyelets.
 
 ## Logos
 
@@ -29,7 +39,7 @@ T-shirt · Long sleeve · Tank top · Sweatshirt · Hoodie (with hood, drawstrin
 
 ## Export
 
-Export this view, front + back side by side, or a 4-angle sheet, with a background or with a transparent one. On iPhone, press and hold the image to save it to Photos, or tap Share.
+3D: this view, front + back side by side, or a 4-angle sheet, with a background or a transparent one. Photo: the finished photo at full resolution. On iPhone, press and hold the image to save it to Photos, or tap Share.
 
 ## Put it on your iPhone
 
