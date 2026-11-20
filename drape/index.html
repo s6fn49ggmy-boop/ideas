@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en" data-standalone="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Drape">
+<meta name="theme-color" content="#eef0f3">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<title>Drape 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Bebas+Neue&family=Caveat:wght@700&family=DM+Serif+Display&family=Inter:wght@400;700;900&family=Montserrat:wght@400;700;900&family=Oswald:wght@500;700&family=Pacifico&family=Playfair+Display:wght@700;900&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: phone-first fitting room. Header + garment rail, 3D viewport in the middle, tabbed control drawer below. Committed light theme: garments read best against a pale studio. */
+:root{
+  --paper:#eef0f3; --card:#ffffff; --ink:#15181d; --mute:#69707d; --line:#dde1e7; --soft:#f5f6f8;
+  --accent:#2f5bea; --accent-ink:#ffffff; --danger:#c8372d;
+  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;
+  color-scheme:light;
+}
+html{height:100%;box-sizing:border-box;background:var(--paper)}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{height:100%;margin:0;overflow:hidden;background:var(--paper);color:var(--ink);font:14px/1.35 var(--ui);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:10px;padding:8px max(14px,env(safe-area-inset-right,0px)) 6px max(14px,env(safe-area-inset-left,0px));background:var(--card)}
+.brand{flex:1;display:flex;align-items:center;gap:9px;font-weight:800;font-size:18px;letter-spacing:-.01em}
+.mark{width:24px;height:24px;border-radius:7px;background:conic-gradient(from 200deg,var(--accent),#7aa0ff,var(--accent));position:relative}
+.mark::after{content:"";position:absolute;inset:6px 5px 5px;border:2px solid #fff;border-top:0;border-radius:0 0 5px 5px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:600;font-size:13px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.danger{color:var(--danger)}
+.btn[disabled]{opacity:.4}
+.rail{display:flex;gap:8px;overflow-x:auto;padding:4px max(14px,env(safe-area-inset-right,0px)) 10px max(14px,env(safe-area-inset-left,0px));background:var(--card);border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.rail::-webkit-scrollbar{display:none}
+.gchip{flex:none;display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--line);background:var(--soft);border-radius:12px;padding:6px 10px 5px;min-width:66px;font-size:11px;font-weight:600;color:var(--mute)}
+.gchip svg{width:30px;height:26px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.gchip.on{border-color:var(--accent);color:var(--accent);background:#eef2fe}
+#vp{position:relative;flex:1;min-height:240px;overflow:hidden;background:radial-gradient(120% 90% at 50% 40%,#ffffff 0,#e6e8ec 70%)}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.views{position:absolute;right:max(10px,env(safe-area-inset-right,0px));top:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
+.views button{border:1px solid var(--line);background:rgba(255,255,255,.88);border-radius:10px;padding:7px 9px;font-size:12px;font-weight:600;min-width:52px;backdrop-filter:blur(6px)}
+.views button.on{background:var(--ink);color:#fff;border-color:transparent}
+#hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(21,24,29,.78);color:#fff;font-size:12px;padding:6px 12px;border-radius:999px;white-space:nowrap;pointer-events:none;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+#toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:var(--ink);color:#fff;font-weight:600;font-size:13px;padding:7px 14px;border-radius:999px;z-index:5;pointer-events:none;white-space:nowrap;max-width:80%;overflow:hidden;text-overflow:ellipsis}
+#loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--mute);font-weight:600}
+#panel{background:var(--card);border-top:1px solid var(--line);max-height:42%;display:flex;flex-direction:column;box-shadow:0 -6px 24px rgba(20,30,50,.06)}
+.tabs{display:flex;gap:4px;padding:8px max(14px,env(safe-area-inset-right,0px)) 0 max(14px,env(safe-area-inset-left,0px))}
+.tabs button{flex:1;border:0;background:none;padding:8px 0 10px;font-weight:700;font-size:13px;color:var(--mute);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+#panel.min #pbody{display:none}
+#panel.min .tabs button.on{border-bottom-color:transparent}
+#pbody{overflow:auto;-webkit-overflow-scrolling:touch;padding:10px max(14px,env(safe-area-inset-right,0px)) 14px max(14px,env(safe-area-inset-left,0px))}
+.sec{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);margin:12px 0 8px}
+.sec:first-child{margin-top:2px}
+.sw{display:flex;flex-wrap:wrap;gap:9px}
+.swb{width:34px;height:34px;border-radius:50%;border:1px solid rgba(0,0,0,.14);padding:0;position:relative}
+.swb.on{outline:2px solid var(--accent);outline-offset:2px}
+.swb input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.swb.custom{background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
+.seg{display:flex;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;border-radius:8px;padding:7px 4px;font-size:12px;font-weight:600;color:var(--mute)}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:74px;flex:none;color:var(--mute);font-size:13px}
+.row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.row output{width:44px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.logos{display:flex;flex-direction:column;gap:8px}
+.logo{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.logo.on{border-color:var(--accent)}
+.lhead{display:flex;align-items:center;gap:10px;padding:7px 10px;width:100%;border:0;background:none;text-align:left}
+.lthumb{width:42px;height:42px;border-radius:8px;object-fit:contain;background:repeating-conic-gradient(#e4e7ec 0 25%,#f4f5f7 0 50%) 0 0/10px 10px;flex:none}
+.lname{flex:1;min-width:0}
+.lname b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lname span{font-size:11px;color:var(--mute)}
+.lbody{padding:2px 10px 10px;border-top:1px solid var(--line)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600}
+.chip.on{background:var(--ink);color:#fff;border-color:transparent}
+.empty{color:var(--mute);font-size:12px;margin:6px 0 0}
+#modal{position:fixed;inset:0;z-index:30;background:rgba(15,18,24,.55);display:flex;align-items:center;justify-content:center;padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
+.mbox{background:var(--card);border-radius:18px;padding:16px;width:100%;max-width:520px;max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.mbox h3{margin:0;font-size:17px}
+.mbox p{margin:0;color:var(--mute);font-size:13px}
+.mimg{max-width:100%;max-height:56vh;object-fit:contain;border-radius:12px;align-self:center;background:repeating-conic-gradient(#e4e7ec 0 25%,#f4f5f7 0 50%) 0 0/14px 14px;-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto}
+.mact{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+textarea,select,input[type=text]{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--soft);font-size:16px;min-width:0}
+textarea{width:100%;resize:vertical}
+.tprev{width:100%;height:120px;border-radius:12px;background:repeating-conic-gradient(#e4e7ec 0 25%,#f4f5f7 0 50%) 0 0/14px 14px;object-fit:contain}
+</style>
+
+<div id="app">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Drape 3D</div>
+    <button class="btn" id="bAdd">+ Logo</button>
+    <button class="btn primary" id="bExport">Export</button>
+  </header>
+  <nav class="rail" id="rail" aria-label="Garments"></nav>
+  <div id="vp">
+    <canvas id="c" aria-label="3D garment preview"></canvas>
+    <div class="views" id="views">
+      <button data-view="front">Front</button><button data-view="three">¾</button><button data-view="side">Side</button><button data-view="back">Back</button><button id="bSpin">Spin</button>
+    </div>
+    <div id="hint">Drag to turn · pinch to zoom · drag a logo to move it · tap a tab twice to hide the panel</div>
+    <div id="toast" hidden></div>
+    <div id="loading">Loading the 3D studio…</div>
+  </div>
+  <section id="panel">
+    <div class="tabs" role="tablist"><button data-tab="garment" class="on" role="tab">Garment</button><button data-tab="logos" role="tab">Logos</button><button data-tab="scene" role="tab">Scene</button></div>
+    <div id="pbody"></div>
+  </section>
+</div>
+<div id="modal" hidden></div>
+<input type="file" id="fileIn" accept="image/*" hidden>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {DecalGeometry} from 'three/addons/geometries/DecalGeometry.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+
+/* ============ helpers ============ */
+const $=s=>document.querySelector(s);
+const TAU=Math.PI*2,clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const mk=(w,h)=>{const c=document.createElement('canvas');c.width=Math.max(1,w|0);c.height=Math.max(1,h|0);return c;};
+const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}};
+function rng(seed){let a=seed>>>0||1;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const se=(c,n)=>Math.sign(c)*Math.pow(Math.abs(c),2/n);
+function keyInterp(K,t){if(t<=K[0][0])return K[0][1];for(let i=1;i<K.length;i++){if(t<=K[i][0]){const [t0,v0]=K[i-1],[t1,v1]=K[i];const f=(t-t0)/(t1-t0);return lerp(v0,v1,(1-Math.cos(f*Math.PI))/2);}}return K[K.length-1][1];}
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1600);}
+
+/* ============ state ============ */
+const COLORS=[['White','#f4f4f1'],['Bone','#e9e1d1'],['Heather','#a7a9ad'],['Charcoal','#3a3c40'],['Black','#1b1c1f'],['Navy','#1f2a44'],['Royal','#2d4fb5'],['Forest','#24453a'],['Olive','#6b6a45'],['Burgundy','#6a2232'],['Rust','#b3532c'],['Sand','#cbb592'],['Sky','#9cc3e4'],['Blush','#e8bfb6']];
+const BGS=[['Studio','#e9ebee'],['White','#ffffff'],['Warm','#efe7dc'],['Concrete','#c9c9c6'],['Night','#20232a'],['Sage','#c5d1c4']];
+const S=Object.assign({garment:'tee',color:'#f4f4f1',fabric:'jersey',bg:'#e9ebee',light:'studio',spin:false,pom:true,transparent:false,tab:'garment',sel:null},store.get('drape.prefs',{}));
+let LOGOS=[];
+
+/* ============ renderer ============ */
+const canvas=$('#c'),vp=$('#vp');
+let renderer;
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});}catch(e){$('#loading').textContent='3D isn’t available in this browser. Try Safari or Chrome.';throw e;}
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture;
+const camera=new THREE.PerspectiveCamera(30,1,.05,60);camera.position.set(0,.1,4);
+const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.dampingFactor=.09;controls.enablePan=false;controls.minDistance=.6;controls.maxDistance=8;controls.rotateSpeed=.8;controls.autoRotateSpeed=2.4;
+const key=new THREE.DirectionalLight(0xffffff,1.5);key.position.set(2.2,4,3.2);key.castShadow=true;key.shadow.mapSize.set(1024,1024);
+Object.assign(key.shadow.camera,{left:-1.6,right:1.6,top:1.6,bottom:-1.6,near:.5,far:12});key.shadow.bias=-.0004;key.shadow.normalBias=.02;scene.add(key);
+const rim=new THREE.DirectionalLight(0xffffff,.7);rim.position.set(-3,2.5,-3);scene.add(rim);
+const hemi=new THREE.HemisphereLight(0xffffff,0x8d8577,.35);scene.add(hemi);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(14,14),new THREE.ShadowMaterial({opacity:.16}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const decalRoot=new THREE.Group();scene.add(decalRoot);
+let dirty=true;const redraw=()=>{dirty=true;};
+controls.addEventListener('change',redraw);
+
+/* ============ procedural fabric textures ============ */
+const texCache=new Map();
+function heightToNormal(h,N,str){const c=mk(N,N),x=c.getContext('2d'),id=x.createImageData(N,N),I=(i,j)=>h[((j+N)%N)*N+((i+N)%N)];
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){let nx=(I(i-1,j)-I(i+1,j))*str,ny=(I(i,j-1)-I(i,j+1))*str,nz=1;const l=Math.hypot(nx,ny,nz);const k=(j*N+i)*4;id.data[k]=(nx/l*.5+.5)*255;id.data[k+1]=(ny/l*.5+.5)*255;id.data[k+2]=(nz/l*.5+.5)*255;id.data[k+3]=255;}
+  x.putImageData(id,0,0);return c;}
+function blurWrap(a,N,rx,ry){const t=new Float32Array(N*N);for(let y=0;y<N;y++)for(let x=0;x<N;x++){let s=0,c=0;for(let j=-ry;j<=ry;j++)for(let i=-rx;i<=rx;i++){s+=a[((y+j+N)%N)*N+((x+i+N)%N)];c++;}t[y*N+x]=s/c;}return t;}
+function normalTex(kind){
+  if(texCache.has('n'+kind))return texCache.get('n'+kind);
+  const N=256,h=new Float32Array(N*N),R=rng(kind.length*977+3);let str=2;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const k=y*N+x,n=R();let v=0;
+    switch(kind){
+      case 'jersey':{const col=x%8,cx=(col-3.5)/3.5;v=(1-cx*cx)*(.55+.45*Math.sin((y+Math.abs(cx)*3)*TAU/8))+n*.12;str=2.2;break;}
+      case 'fleece':v=n;break;
+      case 'twill':v=.5+.5*Math.sin((x+y)*TAU/6)+n*.15;str=2;break;
+      case 'canvas':{const sx=.5+.5*Math.sin(x*TAU/8),sy=.5+.5*Math.sin(y*TAU/8);v=(((x>>3)+(y>>3))&1?sx:sy)+n*.2;str=2.4;break;}
+      case 'rib':v=Math.pow(.5+.5*Math.sin(x*TAU/8),1.4)+n*.08;str=3;break;
+      case 'stitch':{const row=Math.floor(y/10),o=row%2?5:0;v=.5+.5*Math.sin(((x+o)*.9+(y%10)*1.4)*TAU/9)+n*.1;if(y%10===0)v*=.3;str=3.5;break;}
+      default:v=n*.3;
+    }h[k]=v;}
+  let hh=h;if(kind==='fleece')hh=blurWrap(blurWrap(h,N,2,2),N,2,2),str=7;else if(kind==='smooth')hh=blurWrap(h,N,1,1),str=1.2;
+  const t=new THREE.CanvasTexture(heightToNormal(hh,N,str));t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;texCache.set('n'+kind,t);return t;
+}
+function heatherTex(){if(texCache.has('heather'))return texCache.get('heather');const N=256,R=rng(91);let a=new Float32Array(N*N);for(let i=0;i<a.length;i++)a[i]=R();a=blurWrap(a,N,3,0);
+  const c=mk(N,N),x=c.getContext('2d'),id=x.createImageData(N,N);let lo=1,hi=0;for(const v of a){lo=Math.min(lo,v);hi=Math.max(hi,v);}
+  for(let i=0;i<a.length;i++){const t=(a[i]-lo)/(hi-lo);const v=255*(.78+.22*Math.pow(t,1.6));id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255;}x.putImageData(id,0,0);
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;texCache.set('heather',t);return t;}
+
+/* ============ materials ============ */
+let MATS=[];
+function fabricMat(kind,rep,role='main'){
+  const n=normalTex(kind).clone();n.repeat.set(rep[0],rep[1]);n.needsUpdate=true;
+  const m=new THREE.MeshPhysicalMaterial({roughness:kind==='canvas'?.95:.88,metalness:0,sheen:.5,sheenRoughness:.8,normalMap:n,normalScale:new THREE.Vector2(.55,.55),side:role==='inside'?THREE.BackSide:role==='double'?THREE.DoubleSide:THREE.FrontSide});
+  m.userData={kind,rep,role};MATS.push(m);tintMat(m);return m;
+}
+function tintMat(m){const c=new THREE.Color(m.userData.role==='accent'?'#1b1c1f':S.color);const r=m.userData.role;
+  if(r==='inside')c.multiplyScalar(.62);if(r==='seam')c.multiplyScalar(.82);if(r==='metal'){return;}
+  m.color.copy(c);m.sheenColor.copy(c).lerp(new THREE.Color('#ffffff'),.2);
+  const useHeather=S.fabric==='heather'&&['main','inside','double','trim'].includes(r);
+  if(useHeather){const h=heatherTex().clone();h.repeat.set(m.userData.rep[0]/2,m.userData.rep[1]/2);h.needsUpdate=true;m.map=h;}else m.map=null;
+  const fk=S.fabric==='fleece'?'fleece':S.fabric==='smooth'?'smooth':m.userData.kind;
+  if(['main','inside','double'].includes(r)&&m.normalMap&&m.normalMap.userData.k!==fk){const n=normalTex(fk).clone();n.repeat.copy(m.normalMap.repeat);n.needsUpdate=true;n.userData.k=fk;m.normalMap=n;}
+  m.needsUpdate=true;}
+function metalMat(color){const m=new THREE.MeshStandardMaterial({color,metalness:.85,roughness:.35});m.userData={role:'metal',rep:[1,1]};MATS.push(m);return m;}
+
+/* ============ geometry builders ============ */
+function paramGeo(fn,nu,nv,ref){
+  const pos=[],uv=[],idx=[];
+  for(let j=0;j<=nv;j++)for(let i=0;i<=nu;i++){const p=fn(i/nu,j/nv);pos.push(p[0],p[1],p[2]);uv.push(i/nu,j/nv);}
+  for(let j=0;j<nv;j++)for(let i=0;i<nu;i++){const a=j*(nu+1)+i,b=a+1,c=a+nu+1,d=c+1;idx.push(a,c,b,b,c,d);}
+  const g=new THREE.BufferGeometry();g.setIndex(idx);g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.computeVertexNormals();
+  if(ref){/* make normals face away from the reference axis */let s=0;const P=g.attributes.position,Nn=g.attributes.normal;for(const [u,v] of [[.13,.5],[.37,.5],[.62,.5],[.88,.5]]){const i=Math.round(v*nv)*(nu+1)+Math.round(u*nu);const r=ref(u,v);s+=(P.getX(i)-r[0])*Nn.getX(i)+(P.getY(i)-r[1])*Nn.getY(i)+(P.getZ(i)-r[2])*Nn.getZ(i);}
+    if(s<0){for(let k=0;k<idx.length;k+=3){const t=idx[k+1];idx[k+1]=idx[k+2];idx[k+2]=t;}g.setIndex(idx);g.computeVertexNormals();}}
+  return g;
+}
+function tubeAlong(points,r,closed,mat,seg=160){const curve=new THREE.CatmullRomCurve3(points,closed,'centripetal');const g=new THREE.TubeGeometry(curve,seg,r,8,closed);const m=new THREE.Mesh(g,mat);m.castShadow=true;m.receiveShadow=true;return m;}
+const meshOf=(g,m,name)=>{const x=new THREE.Mesh(g,m);x.castShadow=true;x.receiveShadow=true;if(name)x.name=name;return x;};
+
+/* torso: superellipse rings that sweep from the hem up to the shoulders, then roof in to the neckline */
+function torsoPoint(P,u,v){
+  const ang=u*TAU,c=Math.cos(ang),s=Math.sin(ang);let a,b,y,zo=0;
+  if(v<=P.vs){const t=v/P.vs;y=lerp(P.hemY,P.shY,t);a=keyInterp(P.aK,t);b=keyInterp(P.bK,t);}
+  else{const t=(v-P.vs)/(1-P.vs),sa=P.aK[P.aK.length-1][1],sb=P.bK[P.bK.length-1][1];a=lerp(sa,P.neck[0],t);b=lerp(sb,P.neck[1],Math.pow(t,2.2));y=lerp(P.shY,P.neckY,Math.pow(t,.85));
+    const f=Math.max(0,s),bk=Math.max(0,-s);y-=P.neckDrop*Math.pow(t,3)*f*f+P.backDrop*Math.pow(t,3)*bk*bk;zo=P.neckFwd*t;}
+  const fold=1+P.fold*Math.pow(1-v,1.5)*(Math.sin(ang*5+1.3)*.6+Math.sin(ang*9+v*5)*.4)+P.fold*.5*Math.sin(v*18+ang*2)*(1-v);
+  return[a*fold*se(c,P.n),y,b*fold*se(s,P.n)+zo];
+}
+function sleeve(P0,dir,L,r0,r1,side,wr,cuff){
+  const d=dir.clone().normalize(),e1=V(0,0,1),e2=new THREE.Vector3().crossVectors(e1,d).multiplyScalar(-side).normalize();
+  const fn=(u,v)=>{const ang=u*TAU,r=lerp(r0,r1,Math.pow(v,.9))*(1+wr*Math.sin(v*22+ang*2)*v);const p=P0.clone().addScaledVector(d,v*L).addScaledVector(e2,r*se(Math.cos(ang),2.3)).addScaledVector(e1,r*.8*se(Math.sin(ang),2.3));return[p.x,p.y,p.z];};
+  const ref=(u,v)=>{const p=P0.clone().addScaledVector(d,v*L);return[p.x,p.y,p.z];};
+  return{fn,ref,d,e1,e2,end:P0.clone().addScaledVector(d,L),mid:P0.clone().addScaledVector(d,L*.55)};
+}
+function ring(fn,v,n=96){const pts=[];for(let i=0;i<n;i++){const p=fn(i/n,v);pts.push(V(p[0],p[1],p[2]));}return pts;}
+
+function buildShirt(o){
+  const P=o.P,g=new THREE.Group(),printables=[];
+  const circ=TAU*.45,rep=[circ*o.den,1.4*o.den];
+  const outer=fabricMat(o.fabric,rep,'main'),inner=fabricMat(o.fabric,rep,'inside');
+  const tg=paramGeo((u,v)=>torsoPoint(P,u,v),96,72,(u,v)=>[0,lerp(P.hemY,P.neckY,v),0]);
+  const torso=meshOf(tg,outer,'torso');g.add(torso,meshOf(tg,inner));printables.push(torso);
+  const trim=fabricMat(o.trimKind||o.fabric,[40,2],'trim');
+  // neckline
+  if(o.collar!=='hood'){const nr=ring((u,v)=>torsoPoint(P,u,v),1);g.add(tubeAlong(nr,o.collarR||.016,true,trim));}
+  // hem
+  const hemRing=ring((u,v)=>torsoPoint(P,u,v),0);
+  if(o.band){const bandM=fabricMat('rib',[60,1],'trim');const bfn=(u,v)=>{const p=torsoPoint(P,u,0),k=lerp(.985,1.02,v);return[p[0]*k,P.hemY-.005+v*o.band,p[2]*k];};
+    g.add(meshOf(paramGeo(bfn,96,4,(u,v)=>[0,P.hemY,0]),bandM));g.add(tubeAlong(ring(bfn,0),.012,true,bandM));}
+  else g.add(tubeAlong(hemRing,.007,true,trim));
+  // sleeves
+  const presets=[...o.presets];
+  if(o.sleeve)for(const side of[-1,1]){const sv=o.sleeve;const P0=V(side*sv.x,P.shY+sv.y,0),dir=V(side*Math.cos(sv.th),-Math.sin(sv.th),0);
+    const sl=sleeve(P0,dir,sv.L,sv.r0,sv.r1,side,sv.wr||0);const sg=paramGeo(sl.fn,48,40,sl.ref);const sm=meshOf(sg,outer,side>0?'sleeveL':'sleeveR');g.add(sm,meshOf(sg,inner));printables.push(sm);
+    if(o.cuff){const cm=fabricMat('rib',[30,1],'trim');const cf=sleeve(sl.end.clone().addScaledVector(sl.d,-.01),dir,o.cuff,sv.r1*1.06,sv.r1*.98,side,0);g.add(meshOf(paramGeo(cf.fn,40,4,cf.ref),cm));g.add(tubeAlong(ring(cf.fn,1,48),.01,true,cm,60));}
+    else g.add(tubeAlong(ring(sl.fn,1,48),.007,true,trim,60));
+    const out=V(side,0,0).addScaledVector(V(0,0,1),.9).normalize();const mid=sl.mid.clone().addScaledVector(sl.e2,.02);
+    presets.push({name:side>0?'Left sleeve':'Right sleeve',o:mid.clone().addScaledVector(out,3).toArray(),d:out.clone().negate().toArray(),size:sv.L>.6?.11:.1});}
+  // hood
+  if(o.collar==='hood'){
+    const hc=V(0,P.neckY+.15,-.035),hs=V(.215,.26,.245),phS=Math.PI/2+1.05,phL=TAU-2.1,thL=2.25;
+    const hg=new THREE.SphereGeometry(1,64,40,phS,phL,0,thL);hg.scale(hs.x,hs.y,hs.z);hg.translate(hc.x,hc.y,hc.z);
+    const hm=meshOf(hg,outer,'hood');g.add(hm,meshOf(hg,inner));printables.push(hm);
+    const edge=[];for(let i=24;i>=0;i--){const th=thL*i/24;edge.push(spherePt(phS,th,hc,hs));}for(let i=1;i<=24;i++){const th=thL*i/24;edge.push(spherePt(phS+phL,th,hc,hs));}
+    g.add(tubeAlong(edge,.017,false,trim,120));
+    const cord=fabricMat('smooth',[1,1],'trim');for(const sx of[-.06,.06]){const st=V(sx,P.neckY-.07,P.neck[1]+.06);g.add(tubeAlong([st,V(sx*1.15,P.neckY-.2,P.neck[1]+.1),V(sx*1.1,P.neckY-.34,P.neck[1]+.11)],.006,false,cord,24));
+      const tip=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.04,10),metalMat('#b7b7b2'));tip.position.set(sx*1.1,P.neckY-.36,P.neck[1]+.11);g.add(tip);
+      const eye=new THREE.Mesh(new THREE.TorusGeometry(.011,.004,8,20),metalMat('#b7b7b2'));eye.position.copy(st);g.add(eye);}
+    presets.push({name:'Hood side',o:[3,P.neckY+.16,-.05],d:[-1,0,0],size:.1});}
+  // kangaroo pocket
+  if(o.pocket){const v0=.06,v1=.34,pf=(u,v)=>{const vv=lerp(v0,v1,v),w=lerp(.62,.42,v),uu=.25+(u-.5)*w/TAU*2.2;const p=torsoPoint(P,uu,vv),l=Math.hypot(p[0],p[2]);return[p[0]*(1+.014/l),p[1],p[2]*(1+.014/l)];};
+    const pg=paramGeo(pf,40,20,(u,v)=>[0,lerp(P.hemY,P.shY,lerp(v0,v1,v)),0]);const pm=meshOf(pg,outer,'pocket');g.add(pm);
+    const pts=[];for(let i=0;i<=20;i++)pts.push(pf(i/20,0));for(let i=0;i<=20;i++)pts.push(pf(1,i/20));for(let i=20;i>=0;i--)pts.push(pf(i/20,1));for(let i=20;i>=0;i--)pts.push(pf(0,i/20));
+    g.add(tubeAlong(pts.map(p=>V(p[0],p[1],p[2])),.006,false,fabricMat(o.fabric,[8,8],'seam'),200));}
+  return{group:g,printables,presets};
+}
+function spherePt(phi,th,c,s){return V(-Math.cos(phi)*Math.sin(th)*s.x+c.x,Math.cos(th)*s.y+c.y,Math.sin(phi)*Math.sin(th)*s.z+c.z);}
+
+const TORSO={hemY:-.74,shY:.38,neckY:.55,vs:.84,n:2.5,aK:[[0,.5],[.35,.48],[.8,.51],[1,.5]],bK:[[0,.24],[.4,.235],[.8,.265],[1,.25]],neck:[.155,.125],neckDrop:.075,backDrop:.015,neckFwd:.03,fold:.012};
+const SHIRT_PRESETS=[{name:'Centre chest',o:[0,.16,3],d:[0,0,-1],size:.36},{name:'Left chest',o:[.19,.3,3],d:[0,0,-1],size:.13},{name:'Full back',o:[0,.06,-3],d:[0,0,1],size:.42},{name:'Back neck',o:[0,.42,-3],d:[0,0,1],size:.09},{name:'Hem',o:[-.3,-.62,3],d:[0,0,-1],size:.07}];
+
+const GARMENTS={
+ tee:{name:'T-shirt',icon:'M9 4l-6 3 2 5 3-1v10h10V11l3 1 2-5-6-3c-1 2-2 3-4 3s-3-1-4-3z',
+  build:()=>buildShirt({P:TORSO,fabric:'jersey',den:26,collarR:.016,sleeve:{x:.37,y:-.1,th:.68,L:.4,r0:.19,r1:.15},presets:SHIRT_PRESETS})},
+ longsleeve:{name:'Long sleeve',icon:'M9 4l-5 3-2 13 3 1 3-10v10h8V11l3 10 3-1-2-13-5-3c-1 2-2 3-3 3s-2-1-3-3z',
+  build:()=>buildShirt({P:TORSO,fabric:'jersey',den:26,collarR:.016,cuff:.07,sleeve:{x:.37,y:-.1,th:1.2,L:.92,r0:.18,r1:.085,wr:.04},presets:SHIRT_PRESETS})},
+ tank:{name:'Tank top',icon:'M8 3v4c0 2-2 3-2 5v9h12v-9c0-2-2-3-2-5V3h-2c0 2-1 4-2 4s-2-2-2-4z',
+  build:()=>buildShirt({P:{...TORSO,aK:[[0,.49],[.35,.47],[.8,.46],[1,.38]],neck:[.2,.14],neckDrop:.17,backDrop:.05,shY:.36},fabric:'jersey',den:26,collarR:.012,presets:SHIRT_PRESETS.filter(p=>p.name!=='Back neck')})},
+ crew:{name:'Sweatshirt',icon:'M9 4l-5 3-2 13 3 1 3-10v10h8V11l3 10 3-1-2-13-5-3c-1 1-2 2-3 2s-2-1-3-2z',
+  build:()=>buildShirt({P:{...TORSO,aK:[[0,.47],[.3,.5],[.8,.53],[1,.52]],bK:[[0,.25],[.4,.26],[.8,.28],[1,.27]],fold:.018,hemY:-.7},fabric:'fleece',den:20,collarR:.03,trimKind:'rib',band:.1,cuff:.09,sleeve:{x:.38,y:-.1,th:1.2,L:.88,r0:.19,r1:.09,wr:.05},presets:SHIRT_PRESETS})},
+ hoodie:{name:'Hoodie',icon:'M8 3c1-1 7-1 8 0l4 4 2 13-3 1-3-10v10H8V11l-3 10-3-1 2-13zM10 3c0 3 1 4 2 4s2-1 2-4',
+  build:()=>buildShirt({P:{...TORSO,aK:[[0,.47],[.3,.5],[.8,.53],[1,.52]],bK:[[0,.25],[.4,.26],[.8,.28],[1,.27]],fold:.018,hemY:-.7,neck:[.17,.14]},fabric:'fleece',den:20,collar:'hood',trimKind:'rib',band:.1,cuff:.09,pocket:true,sleeve:{x:.38,y:-.1,th:1.2,L:.88,r0:.19,r1:.09,wr:.05},
+   presets:[{name:'Centre chest',o:[0,.24,3],d:[0,0,-1],size:.3},{name:'Left chest',o:[.19,.3,3],d:[0,0,-1],size:.12},{name:'Pocket',o:[0,-.45,3],d:[0,0,-1],size:.14},{name:'Full back',o:[0,.05,-3],d:[0,0,1],size:.42}]})},
+ cap:{name:'Cap',icon:'M4 15c0-6 3-9 8-9s8 3 8 9zM12 6v-1M4 15c-1 1 0 2 2 2h14c2 0 3-1 2-2',build:buildCap},
+ beanie:{name:'Beanie',icon:'M5 17c0-7 3-11 7-11s7 4 7 11zM4 17h16v3H4zM12 6V4',build:buildBeanie},
+ tote:{name:'Tote bag',icon:'M5 9h14l-1 12H6zM9 9c0-4 1-6 3-6s3 2 3 6',build:buildTote},
+};
+
+function buildCap(){
+  const g=new THREE.Group(),printables=[],den=30,c=V(0,0,0),s=V(.3,.255,.32);
+  const main=fabricMat('twill',[den,den/2],'double');
+  const cg=new THREE.SphereGeometry(1,96,48,0,TAU,0,Math.PI/2);const p=cg.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),z=p.getZ(i);p.setXYZ(i,p.getX(i)*s.x,y*s.y*(1+.08*Math.max(0,z)),z*s.z);}cg.computeVertexNormals();
+  const crown=meshOf(cg,main,'crown');g.add(crown);printables.push(crown);
+  const seam=fabricMat('twill',[4,4],'seam');
+  for(let k=0;k<6;k++){const ph=k*TAU/6+Math.PI/2+Math.PI/6,pts=[];for(let i=0;i<=24;i++){const th=i/24*(Math.PI/2);const pp=V(Math.cos(ph)*Math.sin(th)*s.x*1.004,Math.cos(th)*s.y*1.004,Math.sin(ph)*Math.sin(th)*s.z*1.004);pp.y*=1+.08*Math.max(0,pp.z/s.z);pts.push(pp);}g.add(tubeAlong(pts.reverse(),.0035,false,seam,40));}
+  const btn=new THREE.Mesh(new THREE.SphereGeometry(.028,24,12),main);btn.scale.y=.45;btn.position.y=s.y+.004;g.add(btn);
+  for(let k=0;k<6;k++){const ph=k*TAU/6+Math.PI/2,th=.78;const e=new THREE.Mesh(new THREE.TorusGeometry(.009,.003,8,16),seam);e.position.set(Math.cos(ph)*Math.sin(th)*s.x,Math.cos(th)*s.y,Math.sin(ph)*Math.sin(th)*s.z);e.lookAt(e.position.clone().multiplyScalar(2));g.add(e);}
+  const brimM=fabricMat('twill',[16,6],'double');
+  const bf=(u,v)=>{const ph=lerp(-1.12,1.12,u),bx=Math.sin(ph)*s.x*.985,bz=Math.cos(ph)*s.z*.985,ext=.225*Math.pow(Math.max(0,Math.cos(ph/1.12*Math.PI/2)),.55);const dir=V(Math.sin(ph)*.35,0,Math.cos(ph)).normalize();
+    const x=bx+dir.x*ext*v,z=bz+dir.z*ext*v;const y=.004-(.03*v*v+.08*Math.pow(Math.abs(x)/.34,2)*v)*Math.min(1,ext/.16);return[x,y,z];};
+  const bg=paramGeo(bf,60,16);const brim=meshOf(bg,brimM,'brim');g.add(brim);
+  const under=meshOf(bg.clone().translate(0,-.012,0),brimM);g.add(under);
+  const edge=[];for(let i=0;i<=60;i++){const q=bf(i/60,1);edge.push(V(q[0],q[1]-.006,q[2]));}g.add(tubeAlong(edge,.0075,false,brimM,120));
+  const stitch=fabricMat('twill',[4,4],'trim');for(let r=1;r<=6;r++){const pts=[];for(let i=0;i<=40;i++){const q=bf(.04+.92*i/40,.15+r*.13);pts.push(V(q[0],q[1]+.0012,q[2]));}g.add(tubeAlong(pts,.0011,false,stitch,60));}
+  const band=fabricMat('twill',[30,1],'inside');const sb=new THREE.Mesh(new THREE.CylinderGeometry(1,1,.035,64,1,true),band);sb.scale.set(s.x*.995,1,s.z*.995);sb.position.y=.017;g.add(sb);
+  return{group:g,printables,presets:[{name:'Front',o:[0,.12,3],d:[0,0,-1],size:.15},{name:'Left side',o:[3,.09,-.02],d:[-1,0,0],size:.08},{name:'Right side',o:[-3,.09,-.02],d:[1,0,0],size:.08},{name:'Back',o:[0,.1,-3],d:[0,0,1],size:.08}]};
+}
+function buildBeanie(){
+  const g=new THREE.Group(),printables=[];const main=fabricMat('rib',[34,8],'double');
+  const prof=[];for(let i=0;i<=40;i++){const t=i/40;const a=t*Math.PI/2;prof.push(new THREE.Vector2(Math.max(.001,.285*Math.sin(a)*(1+.04*Math.sin(t*9))),.34*Math.cos(a)));}prof.push(new THREE.Vector2(.285,-.1));prof.reverse();
+  const body=meshOf(new THREE.LatheGeometry(prof,96),main,'body');body.scale.z=1.06;g.add(body);printables.push(body);
+  const cm=fabricMat('rib',[34,2],'double');const cprof=[];for(let i=0;i<=16;i++){const a=i/16*Math.PI;cprof.push(new THREE.Vector2(.297+.018*Math.sin(a),-.2+.15*(i/16)));}
+  const cuff=meshOf(new THREE.LatheGeometry(cprof,96),cm,'cuff');cuff.scale.z=1.06;g.add(cuff);printables.push(cuff);
+  if(S.pom){const pg=new THREE.IcosahedronGeometry(.1,12);const p=pg.attributes.position,R=rng(5);for(let i=0;i<p.count;i++){const v=V(p.getX(i),p.getY(i),p.getZ(i));v.multiplyScalar(1+(R()-.5)*.12+.04*Math.sin(v.x*90)*Math.sin(v.y*80));p.setXYZ(i,v.x,v.y,v.z);}pg.computeVertexNormals();
+    const pm=new THREE.Mesh(pg,fabricMat('fleece',[6,6],'main'));pm.position.y=.4;pm.castShadow=true;g.add(pm);}
+  return{group:g,printables,presets:[{name:'Cuff front',o:[0,-.125,3],d:[0,0,-1],size:.12},{name:'Crown',o:[0,.14,3],d:[0,0,-1],size:.14},{name:'Cuff side',o:[3,-.125,0],d:[-1,0,0],size:.08}]};
+}
+function buildTote(){
+  const g=new THREE.Group(),printables=[];const main=fabricMat('canvas',[22,24],'double');
+  const W2=.4,H2=.46,D=.06;
+  const face=sgn=>(u,v)=>{const x=lerp(-W2,W2,u),y=lerp(-H2,H2,v);const bul=Math.cos(x/W2*Math.PI/2)*Math.cos(y/H2*Math.PI/2*.9);const sag=.012*Math.sin(u*Math.PI*3)*Math.pow(1-v,2);return[x*(1-.03*(1-v)),y,sgn*(D*.35+D*.65*Math.pow(bul,.6)+sag)];};
+  const fg=paramGeo(face(1),48,52,(u,v)=>[lerp(-W2,W2,u),lerp(-H2,H2,v),0]);const front=meshOf(fg,main,'front');g.add(front);printables.push(front);
+  const bgm=paramGeo(face(-1),48,52,(u,v)=>[lerp(-W2,W2,u),lerp(-H2,H2,v),0]);const back=meshOf(bgm,main,'back');g.add(back);printables.push(back);
+  const sideM=fabricMat('canvas',[4,24],'double');for(const sx of[-1,1]){const sg=paramGeo((u,v)=>{const y=lerp(-H2,H2,v);const xx=sx*W2*(1-.03*(1-v));const z=lerp(-D*.35,D*.35,u);return[xx,y,z];},6,30);g.add(meshOf(sg,sideM));}
+  g.add(meshOf(paramGeo((u,v)=>[lerp(-W2*.97,W2*.97,u),-H2,lerp(-D*.35,D*.35,v)],20,4),sideM));
+  const hemPts=sgn=>{const p=[];for(let i=0;i<=30;i++){const q=face(sgn)(i/30,.97);p.push(V(q[0],q[1],q[2]+sgn*.004));}return p;};
+  const seam=fabricMat('canvas',[6,6],'seam');g.add(tubeAlong(hemPts(1),.004,false,seam,60),tubeAlong(hemPts(-1),.004,false,seam,60));
+  const hm=fabricMat('canvas',[30,1],'double');
+  for(const sz of[1,-1]){const z=sz*D*.4;g.add(tubeAlong([V(-.17,H2-.06,z),V(-.17,H2+.12,z),V(-.11,H2+.33,z*.6),V(0,H2+.38,z*.3),V(.11,H2+.33,z*.6),V(.17,H2+.12,z),V(.17,H2-.06,z)],.016,false,hm,80));}
+  return{group:g,printables,presets:[{name:'Front',o:[0,-.02,3],d:[0,0,-1],size:.46},{name:'Front top',o:[0,.25,3],d:[0,0,-1],size:.22},{name:'Back',o:[0,-.02,-3],d:[0,0,1],size:.46}]};
+}
+
+/* ============ garment lifecycle ============ */
+let G=null;
+function disposeGroup(o){o.traverse(n=>{if(n.geometry)n.geometry.dispose();});}
+function setGarment(id,frame=true){
+  if(G){scene.remove(G.group);disposeGroup(G.group);MATS.forEach(m=>m.dispose());MATS=[];}
+  S.garment=id;const built=GARMENTS[id].build();G={id,...built};
+  const box=new THREE.Box3().setFromObject(G.group);const ctr=box.getCenter(new THREE.Vector3());G.group.position.sub(V(ctr.x,0,ctr.z));
+  G.group.updateMatrixWorld(true);scene.add(G.group);box.setFromObject(G.group);G.box=box;
+  ground.position.y=box.min.y-.18;const sz=box.getSize(new THREE.Vector3());G.radius=Math.max(sz.x,sz.y*1.05)/2+.04;G.target=box.getCenter(new THREE.Vector3());
+  key.shadow.camera.updateProjectionMatrix();
+  LOGOS.forEach((l,i)=>{if(!l.place[id])autoPlace(l,i);});
+  rebuildDecals();if(frame)setView('front',false);
+  document.querySelectorAll('.gchip').forEach(b=>b.classList.toggle('on',b.dataset.g===id));
+  savePrefs();redraw();if(S.tab==='garment'||S.tab==='logos')renderPanel();
+}
+
+/* ============ camera ============ */
+let camAnim=null;const VIEWS={front:[0,.06],three:[.62,.12],side:[Math.PI/2,.06],back:[Math.PI,.06]};
+function setView(name,anim=true){const [az,el]=VIEWS[name];const dist=G.radius/Math.sin(camera.fov*Math.PI/360)*1.05*(vp.clientWidth<vp.clientHeight?Math.max(1,camera.aspect<1?1/camera.aspect*.78:1):1);
+  const to=V(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el)).multiplyScalar(dist).add(G.target);
+  document.querySelectorAll('#views [data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===name));
+  if(!anim){camera.position.copy(to);controls.target.copy(G.target);controls.update();redraw();return;}
+  camAnim={from:camera.position.clone(),to,tf:controls.target.clone(),tt:G.target.clone(),t0:performance.now(),d:450};}
+$('#views').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b){setSpin(false);setView(b.dataset.view);}});
+function setSpin(on){S.spin=on;controls.autoRotate=on;$('#bSpin').classList.toggle('on',on);redraw();}
+$('#bSpin').onclick=()=>setSpin(!S.spin);
+
+/* ============ logos & decals ============ */
+const helper=new THREE.Object3D();const raycaster=new THREE.Raycaster();
+function logoCanvas(l){const src=l.img,mx=1024,k=Math.min(1,mx/Math.max(src.width,src.height));const c=mk(src.width*k,src.height*k),x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
+  if(l.tint){x.globalCompositeOperation='source-in';x.fillStyle=l.tintColor;x.fillRect(0,0,c.width,c.height);}return c;}
+function refreshLogo(l){l.canvas=logoCanvas(l);if(l.tex)l.tex.dispose();l.tex=new THREE.CanvasTexture(l.canvas);l.tex.colorSpace=THREE.SRGBColorSpace;l.tex.anisotropy=renderer.capabilities.getMaxAnisotropy();buildLogoMat(l);}
+function buildLogoMat(l){if(l.mat)l.mat.dispose();
+  const base={map:l.tex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,opacity:l.opacity,alphaTest:.03,metalness:0};
+  if(l.style==='embroidery'){l.mat=new THREE.MeshPhysicalMaterial({...base,roughness:.5,sheen:1,sheenRoughness:.35,sheenColor:new THREE.Color('#ffffff'),normalMap:normalTex('stitch').clone(),normalScale:new THREE.Vector2(1.1,1.1)});}
+  else if(l.style==='vinyl'){l.mat=new THREE.MeshPhysicalMaterial({...base,roughness:.28,clearcoat:.9,clearcoatRoughness:.18});}
+  else if(l.style==='puff'){l.mat=new THREE.MeshPhysicalMaterial({...base,roughness:.75,normalMap:normalTex('fleece').clone(),normalScale:new THREE.Vector2(.6,.6)});}
+  else{l.mat=new THREE.MeshPhysicalMaterial({...base,roughness:.92,normalMap:normalTex(G?G.printables[0].material.userData.kind:'jersey').clone(),normalScale:new THREE.Vector2(.55,.55)});}
+  if(l.mat.normalMap)l.mat.normalMap.needsUpdate=true;
+}
+function raycastPrintables(o,d){raycaster.set(o,d);const h=raycaster.intersectObjects(G.printables,false)[0];if(!h)return null;const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);if(n.dot(d)>0)n.negate();return{mesh:h.object.name,p:h.point.toArray(),n:n.toArray()};}
+function autoPlace(l,i,presetName){let pr=presetName&&G.presets.find(p=>p.name===presetName);
+  if(!pr){const back=G.presets.find(p=>/back/i.test(p.name));pr=i===0?G.presets[0]:(i===1&&back)?back:G.presets[Math.min(i,G.presets.length-1)];}
+  const o=V(...pr.o).add(G.group.position),hit=raycastPrintables(o,V(...pr.d).normalize());if(!hit)return false;l.place[G.id]={...hit,size:pr.size*(l.scaleHint||1),rot:0,preset:pr.name};return true;}
+function rebuildDecals(){LOGOS.forEach(placeDecal);redraw();}
+function placeDecal(l){
+  if(l.mesh){decalRoot.remove(l.mesh);l.mesh.geometry.dispose();l.mesh=null;}if(l.outline){decalRoot.remove(l.outline);l.outline.geometry.dispose();l.outline=null;}
+  const pl=l.place[G.id];if(!pl||!l.visible)return;const target=G.printables.find(m=>m.name===pl.mesh);if(!target)return;
+  const p=V(...pl.p),n=V(...pl.n);helper.position.copy(p);helper.up.set(0,1,0);if(Math.abs(n.y)>.95)helper.up.set(0,0,-1);helper.lookAt(p.clone().add(n));helper.rotateZ(-pl.rot*Math.PI/180);helper.updateMatrix();
+  const asp=l.canvas.width/l.canvas.height,w=asp>=1?pl.size:pl.size*asp,h=asp>=1?pl.size/asp:pl.size,depth=clamp(Math.max(w,h)*.8,.05,.28);
+  const geo=new DecalGeometry(target,p,helper.rotation.clone(),V(w,h,depth));
+  if(l.mat.normalMap){const dens=l.style==='embroidery'?110:l.style==='puff'?30:G.printables[0].material.normalMap.repeat.x/1.6;l.mat.normalMap.repeat.set(w*dens,h*dens);}
+  l.mesh=new THREE.Mesh(geo,l.mat);l.mesh.renderOrder=10+LOGOS.indexOf(l);l.mesh.receiveShadow=true;l.mesh.userData.logo=l;decalRoot.add(l.mesh);
+  if(S.sel===l.id&&!exporting){const r=[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2],[-w/2,-h/2]].map(([x,y])=>V(x*1.06,y*1.06,.012).applyMatrix4(helper.matrix));
+    l.outline=new THREE.Line(new THREE.BufferGeometry().setFromPoints(r),new THREE.LineDashedMaterial({color:0x2f5bea,dashSize:.012,gapSize:.008,depthTest:false,transparent:true}));l.outline.computeLineDistances();l.outline.renderOrder=99;decalRoot.add(l.outline);}
+}
+async function addLogoFromImage(img,name,opts={}){
+  const l={id:uid(),name:name||'Logo',img,src:opts.src||null,opacity:1,style:opts.style||'print',tint:false,tintColor:'#ffffff',visible:true,place:{},scaleHint:opts.scaleHint||1};
+  if(!l.src){const c=logoCanvas(l);l.src=c.toDataURL('image/png');}
+  refreshLogo(l);LOGOS.push(l);if(!autoPlace(l,LOGOS.length-1,opts.preset)){toast('Couldn’t find a spot. Tap “Tap to place”.');}
+  S.sel=l.id;placeDecal(l);rebuildDecals();saveLogos();return l;
+}
+function loadImage(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src;});}
+
+/* drag logos on the surface, tap to place */
+let drag=null,placing=false,downAt=null;
+vp.addEventListener('pointerdown',e=>{
+  if(e.target!==canvas)return;const p=ndc(e);downAt={x:e.clientX,y:e.clientY,t:performance.now()};
+  raycaster.setFromCamera(p,camera);const hits=raycaster.intersectObjects(LOGOS.filter(l=>l.mesh).map(l=>l.mesh),false);
+  if(hits.length&&!placing){const l=hits[0].object.userData.logo;e.stopPropagation();e.preventDefault();setSpin(false);
+    if(S.sel!==l.id){S.sel=l.id;rebuildDecals();renderPanel();}drag={l,id:e.pointerId,moved:false};try{vp.setPointerCapture(e.pointerId);}catch(_){}return;}
+},true);
+vp.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;e.stopPropagation();const p=ndc(e);raycaster.setFromCamera(p,camera);const h=raycaster.intersectObjects(G.printables,false)[0];if(!h)return;
+  const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);const pl=drag.l.place[G.id];Object.assign(pl,{mesh:h.object.name,p:h.point.toArray(),n:n.toArray(),preset:null});drag.moved=true;
+  cancelAnimationFrame(drag.raf);drag.raf=requestAnimationFrame(()=>{placeDecal(drag.l);redraw();});},true);
+const endDrag=e=>{if(drag&&e.pointerId===drag.id){e.stopPropagation();if(drag.moved){saveLogos();if(S.tab==='logos')renderPanel();}drag=null;return;}
+  if(downAt&&e.type==='pointerup'&&Math.hypot(e.clientX-downAt.x,e.clientY-downAt.y)<8&&performance.now()-downAt.t<400){tapAt(e);}downAt=null;};
+vp.addEventListener('pointerup',endDrag,true);vp.addEventListener('pointercancel',endDrag,true);
+function ndc(e){const r=canvas.getBoundingClientRect();return new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);}
+function tapAt(e){raycaster.setFromCamera(ndc(e),camera);const h=raycaster.intersectObjects(G.printables,false)[0];const l=LOGOS.find(x=>x.id===S.sel);
+  if(placing&&l){placing=false;$('#hint').textContent='Drag to turn · pinch to zoom · drag a logo to move it';if(!h){toast('Tap on the garment');return;}
+    const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);const old=l.place[G.id]||{size:G.presets[0].size,rot:0};l.place[G.id]={...old,mesh:h.object.name,p:h.point.toArray(),n:n.toArray(),preset:null};placeDecal(l);redraw();saveLogos();renderPanel();toast('Placed');return;}
+  if(!h&&S.sel){S.sel=null;rebuildDecals();renderPanel();}}
+
+/* ============ export ============ */
+let exporting=false;
+function renderShot(w,h,view){const oldPR=renderer.getPixelRatio(),size=renderer.getSize(new THREE.Vector2()),oldPos=camera.position.clone(),oldT=controls.target.clone(),oldA=camera.aspect;
+  exporting=true;rebuildDecals();renderer.setPixelRatio(1);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+  if(view){const [az,el]=VIEWS[view];const dist=G.radius/Math.sin(camera.fov*Math.PI/360)*1.08*Math.max(1,h/w*.8);camera.position.copy(V(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el)).multiplyScalar(dist).add(G.target));camera.lookAt(G.target);}
+  applyBg(true);renderer.render(scene,camera);const out=mk(w,h);out.getContext('2d').drawImage(renderer.domElement,0,0,w,h);
+  exporting=false;applyBg();renderer.setPixelRatio(oldPR);renderer.setSize(size.x,size.y,false);camera.aspect=oldA;camera.updateProjectionMatrix();camera.position.copy(oldPos);controls.target.copy(oldT);controls.update();rebuildDecals();return out;}
+function exportModal(){
+  modal(`<div class="mbox"><h3>Export mockup</h3><div class="seg" id="exK"><button data-k="view" class="on">This view</button><button data-k="fb">Front + back</button><button data-k="four">4 angles</button></div>
+   <div class="seg" id="exB"><button data-b="0" class="${S.transparent?'':'on'}">Background</button><button data-b="1" class="${S.transparent?'on':''}">Transparent</button></div>
+   <img class="mimg" id="exImg" alt="Mockup preview"><p>On iPhone: press and hold the image, then tap <b>Save to Photos</b> or <b>Share</b>.</p>
+   <div class="mact"><button class="btn" data-close>Close</button><button class="btn" id="exDl">Download</button><button class="btn primary" id="exSh">Share…</button></div></div>`);
+  let kind='view',canv=null;
+  const go=()=>{setTimeout(()=>{if(kind==='view')canv=renderShot(1600,2000);else{const views=kind==='fb'?['front','back']:['front','three','side','back'];const cw=1000,ch=1250;const cols=views.length===2?2:2,rows=views.length===2?1:2;canv=mk(cw*cols,ch*rows);const x=canv.getContext('2d');
+      if(!S.transparent){x.fillStyle=S.bg;x.fillRect(0,0,canv.width,canv.height);}views.forEach((v,i)=>x.drawImage(renderShot(cw,ch,v),(i%cols)*cw,Math.floor(i/cols)*ch));}
+    $('#exImg').src=canv.toDataURL('image/png');redraw();},30);};
+  $('#exK').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;kind=b.dataset.k;$('#exK').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));go();};
+  $('#exB').onclick=e=>{const b=e.target.closest('[data-b]');if(!b)return;S.transparent=b.dataset.b==='1';$('#exB').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));savePrefs();go();};
+  const name=()=>`drape-${S.garment}-${kind}.png`;
+  $('#exSh').onclick=async()=>{try{const blob=await new Promise(r=>canv.toBlob(r,'image/png'));const f=new File([blob],name(),{type:'image/png'});if(navigator.canShare&&!navigator.canShare({files:[f]}))throw 0;await navigator.share({files:[f]});}catch(e){if(e&&e.name==='AbortError')return;toast('Sharing isn’t available here. Press and hold the image.');}};
+  $('#exDl').onclick=()=>{canv.toBlob(b=>{try{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name();document.body.appendChild(a);a.click();a.remove();}catch(e){toast('Press and hold the image to save it.');}});};
+  go();}
+$('#bExport').onclick=()=>{setSpin(false);exportModal();};
+function modal(html){const m=$('#modal');m.innerHTML=html;m.hidden=false;m.onclick=e=>{if(e.target===m||e.target.closest('[data-close]'))closeModal();};}
+function closeModal(){const m=$('#modal');m.hidden=true;m.innerHTML='';}
+
+/* ============ text logo maker ============ */
+const FONTS=['Montserrat','Inter','Space Grotesk','Bebas Neue','Oswald','Archivo Black','Playfair Display','DM Serif Display','Pacifico','Caveat'];
+function textCanvas(t){const size=220,c=mk(10,10);let x=c.getContext('2d');const f=`${t.weight} ${size}px "${t.font}", sans-serif`;x.font=f;const lines=t.text.split('\n');const tr=t.track*size/100;
+  const lw=s=>{let w=0;for(const ch of s)w+=x.measureText(ch).width+tr;return Math.max(1,w-tr);};const W=Math.ceil(Math.max(...lines.map(lw)))+40,lh=size*1.05,Hh=Math.ceil(lh*lines.length+size*.35)+40;
+  c.width=W;c.height=Hh;x=c.getContext('2d');x.font=f;x.fillStyle=t.color;x.textBaseline='alphabetic';
+  lines.forEach((s,i)=>{let px=(W-lw(s))/2;const py=20+size*.95+i*lh;for(const ch of s){x.fillText(ch,px,py);px+=x.measureText(ch).width+tr;}});return trim(c);}
+function trim(c){const x=c.getContext('2d'),d=x.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=0,y1=0;for(let y=0;y<c.height;y++)for(let i=0;i<c.width;i++)if(d[(y*c.width+i)*4+3]>8){if(i<x0)x0=i;if(i>x1)x1=i;if(y<y0)y0=y;if(y>y1)y1=y;}
+  if(x1<x0)return c;const p=12,o=mk(x1-x0+1+p*2,y1-y0+1+p*2);o.getContext('2d').drawImage(c,x0-p,y0-p);return o;}
+function textModal(){const t={text:'YOUR BRAND',font:'Montserrat',weight:900,color:'#1b1c1f',track:4};
+  modal(`<div class="mbox"><h3>Text logo</h3><textarea id="tTx" rows="2" aria-label="Text">${t.text}</textarea>
+   <div class="row"><label for="tFont">Font</label><select id="tFont" style="flex:1">${FONTS.map(f=>`<option>${f}</option>`).join('')}</select></div>
+   <div class="seg" id="tW"><button data-w="400">Regular</button><button data-w="700">Bold</button><button data-w="900" class="on">Black</button></div>
+   <div class="row"><label for="tTr">Spacing</label><input id="tTr" type="range" min="-10" max="60" value="4"><output>4</output></div>
+   <div class="row"><label>Colour</label><div class="sw" id="tCol">${['#1b1c1f','#ffffff','#2d4fb5','#b3532c','#24453a','#e6b23c'].map(c=>`<button class="swb ${c===t.color?'on':''}" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<label class="swb custom" aria-label="Custom colour"><input type="color" id="tCu" value="#1b1c1f"></label></div></div>
+   <img class="tprev" id="tPrev" alt="Preview"><div class="mact"><button class="btn" data-close>Cancel</button><button class="btn primary" id="tAdd">Add to garment</button></div></div>`);
+  $('#tFont').value='Montserrat';
+  const draw=async()=>{try{await Promise.race([document.fonts.load(`${t.weight} 40px "${t.font}"`,t.text),new Promise(r=>setTimeout(r,2000))]);}catch(_){}const c=textCanvas(t);$('#tPrev').src=c.toDataURL();return c;};
+  $('#tTx').oninput=e=>{t.text=e.target.value||' ';draw();};$('#tFont').onchange=e=>{t.font=e.target.value;draw();};
+  $('#tW').onclick=e=>{const b=e.target.closest('[data-w]');if(!b)return;t.weight=+b.dataset.w;$('#tW').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw();};
+  $('#tTr').oninput=e=>{t.track=+e.target.value;e.target.nextElementSibling.textContent=e.target.value;draw();};
+  $('#tCol').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;t.color=b.dataset.c;$('#tCol').querySelectorAll('.swb').forEach(x=>x.classList.toggle('on',x===b));draw();};
+  $('#tCu').oninput=e=>{t.color=e.target.value;draw();};
+  $('#tAdd').onclick=async()=>{const c=await draw();closeModal();await addLogoFromImage(c,t.text.split('\n')[0].slice(0,24));S.tab='logos';renderPanel();toast('Text logo added');};draw();}
+
+/* ============ panel UI ============ */
+document.querySelector('.tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;if(S.tab===b.dataset.tab){$('#panel').classList.toggle('min');return;}$('#panel').classList.remove('min');S.tab=b.dataset.tab;renderPanel();};
+function renderPanel(){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===S.tab));const pb=$('#pbody'),st=pb.scrollTop;pb.onclick=null;PANELS[S.tab](pb);pb.scrollTop=st;}
+const segHTML=(name,opts,cur)=>`<div class="seg" data-seg="${name}">${opts.map(([v,l])=>`<button data-v="${v}" class="${String(cur)===String(v)?'on':''}">${l}</button>`).join('')}</div>`;
+const PANELS={
+ garment(b){b.innerHTML=`<div class="sec">Colour · ${esc((COLORS.find(c=>c[1]===S.color)||['Custom'])[0])}</div><div class="sw">${COLORS.map(([n,c])=>`<button class="swb ${c===S.color?'on':''}" data-c="${c}" style="background:${c}" aria-label="${n}"></button>`).join('')}<label class="swb custom ${COLORS.some(c=>c[1]===S.color)?'':'on'}" aria-label="Custom colour"><input type="color" id="gCu" value="${S.color}"></label></div>
+   <div class="sec">Fabric</div>${segHTML('fab',[['jersey','Standard'],['heather','Heather'],['fleece','Brushed'],['smooth','Smooth']],S.fabric)}
+   ${S.garment==='beanie'?`<div class="sec">Pom-pom</div>${segHTML('pom',[['1','On'],['0','Off']],S.pom?'1':'0')}`:''}
+   <p class="empty" style="margin-top:12px">Pick a garment from the row above. Your logos follow you to each one.</p>`;
+  b.onclick=e=>{const c=e.target.closest('[data-c]');if(c){setColor(c.dataset.c);return;}const s=e.target.closest('[data-seg] button');if(!s)return;const g=s.parentNode.dataset.seg;
+    if(g==='fab'){S.fabric=s.dataset.v;MATS.forEach(tintMat);LOGOS.forEach(buildLogoMat);rebuildDecals();savePrefs();renderPanel();}
+    if(g==='pom'){S.pom=s.dataset.v==='1';setGarment('beanie',false);}};
+  b.querySelector('#gCu').oninput=e=>{S.color=e.target.value;MATS.forEach(tintMat);redraw();};b.querySelector('#gCu').onchange=()=>{savePrefs();renderPanel();};},
+ logos(b){const l=LOGOS.find(x=>x.id===S.sel);
+  b.innerHTML=`<div class="acts"><button class="btn primary" data-a="img">+ Image</button><button class="btn" data-a="text">+ Text logo</button></div>
+   <div class="logos" style="margin-top:10px">${LOGOS.map(x=>{const pl=x.place[G.id];const on=x.id===S.sel;return`<div class="logo ${on?'on':''}"><button class="lhead" data-sel="${x.id}"><img class="lthumb" src="${x.src}" alt=""><span class="lname"><b>${esc(x.name)}</b><span>${pl?esc(pl.preset||'Custom spot'):'Not placed on this item'} · ${({print:'Screen print',embroidery:'Embroidery',vinyl:'Vinyl',puff:'Puff print'})[x.style]}</span></span></button>${on?logoBody(x,pl):''}</div>`;}).join('')||'<p class="empty">Add your logo as an image (a transparent PNG works best) or make a text logo.</p>'}</div>`;
+  b.onclick=e=>{const a=e.target.closest('[data-a]');if(a){if(a.dataset.a==='img')$('#fileIn').click();else textModal();return;}
+    const s=e.target.closest('[data-sel]');if(s){S.sel=S.sel===s.dataset.sel?null:s.dataset.sel;rebuildDecals();renderPanel();return;}
+    if(!l)return;const pr=e.target.closest('[data-pre]');if(pr){if(autoPlace(l,0,pr.dataset.pre)){placeDecal(l);redraw();saveLogos();renderPanel();}return;}
+    const sg=e.target.closest('[data-seg] button');if(sg){const g=sg.parentNode.dataset.seg;if(g==='style'){l.style=sg.dataset.v;buildLogoMat(l);}if(g==='tint'){l.tint=sg.dataset.v==='1';refreshLogo(l);}rebuildDecals();saveLogos();renderPanel();return;}
+    const k=e.target.closest('[data-k]');if(!k)return;const act=k.dataset.k;
+    if(act==='place'){placing=true;$('#hint').textContent='Tap the garment where this logo should go';toast('Tap the garment');}
+    else if(act==='hide'){l.visible=!l.visible;placeDecal(l);redraw();renderPanel();}
+    else if(act==='dup'){addLogoFromImage(l.img,l.name+' copy',{src:l.src,style:l.style}).then(()=>renderPanel());}
+    else if(act==='del'){if(l.mesh)decalRoot.remove(l.mesh);if(l.outline)decalRoot.remove(l.outline);LOGOS=LOGOS.filter(x=>x!==l);S.sel=null;rebuildDecals();saveLogos();renderPanel();toast('Logo removed');}
+    else if(act==='center'){const pl=l.place[G.id];if(pl){pl.rot=0;placeDecal(l);redraw();renderPanel();saveLogos();}}};
+  const pl=l&&l.place[G.id];
+  if(l&&pl){const sz=b.querySelector('#lSize'),ro=b.querySelector('#lRot'),op=b.querySelector('#lOp');
+    sz.oninput=()=>{pl.size=+sz.value;sz.nextElementSibling.textContent=Math.round(pl.size*100)+' cm';placeDecal(l);redraw();};
+    ro.oninput=()=>{pl.rot=+ro.value;ro.nextElementSibling.textContent=ro.value+'°';placeDecal(l);redraw();};
+    op.oninput=()=>{l.opacity=op.value/100;l.mat.opacity=l.opacity;op.nextElementSibling.textContent=op.value+'%';redraw();};
+    [sz,ro,op].forEach(i=>i.onchange=saveLogos);}
+  const tc=b.querySelector('#lTc');if(tc)tc.oninput=()=>{l.tintColor=tc.value;l.tint=true;refreshLogo(l);rebuildDecals();};if(tc)tc.onchange=()=>{saveLogos();renderPanel();};},
+ scene(b){b.innerHTML=`<div class="sec">Background</div><div class="sw">${BGS.map(([n,c])=>`<button class="swb ${c===S.bg?'on':''}" data-bg="${c}" style="background:${c}" aria-label="${n}"></button>`).join('')}<label class="swb custom" aria-label="Custom background"><input type="color" id="bgCu" value="${S.bg}"></label></div>
+   <div class="sec">Lighting</div>${segHTML('light',[['studio','Studio'],['soft','Soft'],['drama','Dramatic'],['sun','Golden']],S.light)}
+   <div class="sec">Turntable</div>${segHTML('spin',[['0','Still'],['1','Spin']],S.spin?'1':'0')}
+   <p class="empty" style="margin-top:12px">Export lets you pick a transparent background for brand decks and websites.</p>`;
+  b.onclick=e=>{const c=e.target.closest('[data-bg]');if(c){S.bg=c.dataset.bg;applyBg();savePrefs();renderPanel();return;}const s=e.target.closest('[data-seg] button');if(!s)return;const g=s.parentNode.dataset.seg;
+    if(g==='light'){S.light=s.dataset.v;applyLight();savePrefs();renderPanel();}if(g==='spin'){setSpin(s.dataset.v==='1');renderPanel();}};
+  b.querySelector('#bgCu').oninput=e=>{S.bg=e.target.value;applyBg();};b.querySelector('#bgCu').onchange=savePrefs;},
+};
+function logoBody(l,pl){if(!pl)return`<div class="lbody"><p class="empty">This logo isn’t on the ${GARMENTS[G.id].name.toLowerCase()} yet.</p><div class="chips" style="margin-top:8px">${G.presets.map(p=>`<button class="chip" data-pre="${esc(p.name)}">${esc(p.name)}</button>`).join('')}<button class="chip" data-k="place">Tap to place</button></div></div>`;
+  return`<div class="lbody"><div class="sec">Position</div><div class="chips">${G.presets.map(p=>`<button class="chip ${pl.preset===p.name?'on':''}" data-pre="${esc(p.name)}">${esc(p.name)}</button>`).join('')}<button class="chip" data-k="place">Tap to place</button></div>
+   <div class="row"><label for="lSize">Size</label><input id="lSize" type="range" min=".03" max=".7" step=".005" value="${pl.size}"><output>${Math.round(pl.size*100)} cm</output></div>
+   <div class="row"><label for="lRot">Rotate</label><input id="lRot" type="range" min="-180" max="180" step="1" value="${pl.rot}"><output>${pl.rot}°</output></div>
+   <div class="row"><label for="lOp">Opacity</label><input id="lOp" type="range" min="10" max="100" value="${Math.round(l.opacity*100)}"><output>${Math.round(l.opacity*100)}%</output></div>
+   <div class="sec">Finish</div>${segHTML('style',[['print','Print'],['embroidery','Embroidery'],['vinyl','Vinyl'],['puff','Puff']],l.style)}
+   <div class="sec">Ink colour</div><div class="row" style="margin:0">${segHTML('tint',[['0','Original'],['1','One colour']],l.tint?'1':'0')}<label class="swb custom" style="flex:none" aria-label="Ink colour"><input type="color" id="lTc" value="${l.tintColor}"></label></div>
+   <div class="acts" style="margin-top:12px"><button class="btn" data-k="center">Straighten</button><button class="btn" data-k="hide">${l.visible?'Hide':'Show'}</button><button class="btn" data-k="dup">Duplicate</button><button class="btn danger" data-k="del">Delete</button></div></div>`;}
+function setColor(c){S.color=c;MATS.forEach(tintMat);savePrefs();renderPanel();redraw();}
+function applyBg(forExport){const t=forExport&&S.transparent;scene.background=t?null:new THREE.Color(S.bg);renderer.setClearColor(0x000000,0);
+  const dark=new THREE.Color(S.bg).getHSL({}).l<.35;ground.material.opacity=dark?.32:.16;vp.style.background=S.bg;redraw();}
+function applyLight(){const L={studio:[1.5,[2.2,4,3.2],.7,.35,1.05,'#ffffff'],soft:[.9,[1,5,3],.5,.65,1.1,'#ffffff'],drama:[2.4,[3.5,2.6,1.2],1.1,.12,.95,'#ffffff'],sun:[1.9,[3,1.8,2.5],.5,.3,1.0,'#ffd7a8']}[S.light];
+  key.intensity=L[0];key.position.set(...L[1]);rim.intensity=L[2];hemi.intensity=L[3];renderer.toneMappingExposure=L[4];key.color.set(L[5]);redraw();}
+
+/* ============ persistence ============ */
+const savePrefs=()=>store.set('drape.prefs',{garment:S.garment,color:S.color,fabric:S.fabric,bg:S.bg,light:S.light,pom:S.pom,transparent:S.transparent});
+function saveLogos(){clearTimeout(saveLogos.t);saveLogos.t=setTimeout(()=>{const ok=store.set('drape.logos',LOGOS.map(l=>({id:l.id,name:l.name,src:l.src,opacity:l.opacity,style:l.style,tint:l.tint,tintColor:l.tintColor,visible:l.visible,place:l.place})));if(!ok)toast('Storage is full, so logos won’t be remembered after closing.');},400);}
+async function restoreLogos(){const saved=store.get('drape.logos',null);if(!saved)return false;for(const s of saved){try{const img=await loadImage(s.src);const l={...s,img};refreshLogo(l);LOGOS.push(l);}catch(e){}}return true;}
+
+/* ============ sample brand ============ */
+async function sampleLogos(){
+  try{await Promise.race([Promise.all([document.fonts.load('400 80px "Bebas Neue"'),document.fonts.load('700 30px "Montserrat"')]),new Promise(r=>setTimeout(r,2500))]);}catch(_){}
+  const c=mk(800,800),x=c.getContext('2d');x.fillStyle='#24453a';x.beginPath();x.arc(400,400,380,0,TAU);x.fill();x.strokeStyle='#efe8da';x.lineWidth=14;x.beginPath();x.arc(400,400,330,0,TAU);x.stroke();
+  x.fillStyle='#efe8da';x.beginPath();x.moveTo(400,140);x.bezierCurveTo(600,280,600,520,400,670);x.bezierCurveTo(200,520,200,280,400,140);x.fill();
+  x.strokeStyle='#24453a';x.lineWidth=14;x.lineCap='round';x.beginPath();x.moveTo(400,190);x.lineTo(400,640);x.stroke();for(let i=0;i<4;i++){const y=270+i*90;for(const s of[1,-1]){x.beginPath();x.moveTo(400,y+40);x.quadraticCurveTo(400+s*60,y+10,400+s*(105-i*12),y-25+i*6);x.stroke();}}
+  x.fillStyle='#c9783b';x.beginPath();x.arc(650,170,60,0,TAU);x.fill();
+  await addLogoFromImage(c,'Fernbrook emblem',{preset:'Left chest'});
+  const w=mk(1400,520),y=w.getContext('2d');y.fillStyle='#24453a';y.textAlign='center';y.font='400 300px "Bebas Neue", Impact, sans-serif';const tr=24;let tw=0;for(const ch of 'FERNBROOK')tw+=y.measureText(ch).width+tr;let px=700-tw/2+tr/2;y.textAlign='left';for(const ch of 'FERNBROOK'){y.fillText(ch,px,300);px+=y.measureText(ch).width+tr;}
+  y.fillStyle='#c9783b';y.textAlign='center';y.font='700 64px "Montserrat", sans-serif';y.fillText('COFFEE  ROASTERS',700,430);
+  await addLogoFromImage(trim(w),'Fernbrook wordmark',{preset:'Full back',style:'print'});S.sel=null;rebuildDecals();
+}
+
+/* ============ boot ============ */
+$('#rail').innerHTML=Object.entries(GARMENTS).map(([id,g])=>`<button class="gchip" data-g="${id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${g.icon}"/></svg>${g.name}</button>`).join('');
+$('#rail').onclick=e=>{const b=e.target.closest('[data-g]');if(b&&b.dataset.g!==S.garment)setGarment(b.dataset.g);};
+$('#bAdd').onclick=()=>{S.tab='logos';renderPanel();$('#fileIn').click();};
+$('#fileIn').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const url=URL.createObjectURL(f);try{const img=await loadImage(url);await addLogoFromImage(img,f.name.replace(/\.[^.]+$/,'').slice(0,24));S.tab='logos';renderPanel();toast('Logo added · drag it to move');}catch(_){toast('That file couldn’t be opened as an image');}};
+function resize(){const w=vp.clientWidth,h=vp.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();redraw();}
+new ResizeObserver(()=>{resize();}).observe(vp);
+function loop(){requestAnimationFrame(loop);
+  if(camAnim){const t=clamp((performance.now()-camAnim.t0)/camAnim.d,0,1),k=1-Math.pow(1-t,3);camera.position.lerpVectors(camAnim.from,camAnim.to,k);controls.target.lerpVectors(camAnim.tf,camAnim.tt,k);if(t>=1)camAnim=null;dirty=true;}
+  if(controls.update())dirty=true;if(controls.autoRotate)dirty=true;
+  if(dirty){dirty=false;renderer.render(scene,camera);}}
+if('serviceWorker' in navigator&&location.protocol==='https:'&&document.documentElement.dataset.standalone==='1')navigator.serviceWorker.register('sw.js').catch(()=>{});
+(async()=>{
+  resize();applyBg();applyLight();
+  const had=await restoreLogos();
+  setGarment(GARMENTS[S.garment]?S.garment:'tee');
+  if(!had)await sampleLogos();
+  $('#loading').hidden=true;renderPanel();loop();
+  setTimeout(()=>{$('#hint').hidden=true;},6000);
+})();
+</script>
+
+</body>
+</html>
